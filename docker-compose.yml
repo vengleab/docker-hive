@@ -1,0 +1,100 @@
+version: "3.5"
+
+services:
+  base:
+    build: ./hadoop-cluster/base
+    image: local-hadoop-cluster/base
+    profiles:
+      - skip
+
+  namenode:
+    build: ./hadoop-cluster/namenode
+    image: local-hadoop-cluster/namenode
+    volumes:
+      - namenode:/hadoop/dfs/name
+    environment:
+      - CLUSTER_NAME=test
+    env_file:
+      - ./hadoop-hive.env
+    ports:
+      - "9870:9870"
+      - "9000:9000"
+  datanode:
+    build: ./hadoop-cluster/datanode
+    image: local-hadoop-cluster/datanode
+    volumes:
+      - datanode:/hadoop/dfs/data
+    env_file:
+      - ./hadoop-hive.env
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870"
+    ports:
+      - "9864:9864"
+
+  historyserver:
+    build: ./hadoop-cluster/historyserver
+    image: local-hadoop-cluster/historyserver
+    depends_on:
+      - namenode
+      - datanode
+    env_file:
+      - ./hadoop-hive.env
+    ports:
+      - "8188:8188"
+
+  nodemanager:
+    build: ./hadoop-cluster/nodemanager
+    image: local-hadoop-cluster/nodemanager
+    depends_on:
+      - namenode
+      - datanode
+    env_file:
+      - ./hadoop-hive.env
+    ports:
+      - "8042:8042"
+  resourcemanager:
+    build: ./hadoop-cluster/resourcemanager
+    image: local-hadoop-cluster/resourcemanager
+    # restart: on-failure
+    depends_on:
+      - namenode
+      - datanode
+    env_file:
+      - ./hadoop-hive.env
+    ports:
+      - "8088:8088"    
+  hive-server:
+    image: bde2020/hive:3.1.2-postgresql-metastore
+    env_file:
+      - ./hadoop-hive.env
+    environment:
+      HIVE_CORE_CONF_javax_jdo_option_ConnectionURL: "jdbc:postgresql://hive-metastore/metastore"
+      SERVICE_PRECONDITION: "hive-metastore:9083"
+    ports:
+      - "10000:10000"
+  hive-metastore:
+    image: bde2020/hive:3.1.2-postgresql-metastore
+    env_file:
+      - ./hadoop-hive.env
+    command: /opt/hive/bin/hive --service metastore
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870 datanode:9864 hive-metastore-postgresql:5432"
+    ports:
+      - "9083:9083"
+  hive-metastore-postgresql:
+    image: bde2020/hive-metastore-postgresql:3.1.0
+    ports:
+      - "5432:5432"
+  presto-coordinator:
+    image: shawnzhu/prestodb:0.181
+    ports:
+      - "8080:8080"
+
+volumes:
+  namenode:
+  datanode:
+
+# solve java.net.URISyntaxException Illegal character in hostname at index 49: thrift://docker-hive-hive-metastore-1.docker-hive_default:9083
+networks:
+  default:
+    name: docker-hive-default
