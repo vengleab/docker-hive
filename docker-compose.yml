@@ -1,11 +1,6 @@
 version: "3.5"
 
 services:
-  base:
-    build: ./hadoop-cluster/base
-    image: local-hadoop-cluster/base
-    profiles:
-      - skip
 
   namenode:
     build: ./hadoop-cluster/namenode
@@ -64,7 +59,9 @@ services:
     ports:
       - "8088:8088"    
   hive-server:
-    image: bde2020/hive:3.1.2-postgresql-metastore
+    image: local-hive
+    build:
+      context: .
     env_file:
       - ./hadoop-hive.env
     environment:
@@ -73,7 +70,9 @@ services:
     ports:
       - "10000:10000"
   hive-metastore:
-    image: bde2020/hive:3.1.2-postgresql-metastore
+    image: local-hive
+    build:
+      context: .
     env_file:
       - ./hadoop-hive.env
     command: /opt/hive/bin/hive --service metastore
