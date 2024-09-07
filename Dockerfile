@@ -13,12 +13,10 @@ ENV HADOOP_HOME /opt/hadoop-$HADOOP_VERSION
 
 WORKDIR /opt
 
-RUN sed -i 's/^.*$/deb http:\/\/mirrors.tuna.tsinghua.edu.cn\/debian\/ buster main\ndeb-src http:\/\/mirrors.tuna.tsinghua.edu.cn\/debian\/ buster main\ndeb http:\/\/mirrors.tuna.tsinghua.edu.cn\/debian-security\/ buster\/updates main\ndeb-src http:\/\/mirrors.tuna.tsinghua.edu.cn\/debian-security\/ buster\/updates main/g' /etc/apt/sources.list
-
 #Install Hive and PostgreSQL JDBC
 #Install Hive and PostgreSQL JDBC
-RUN apt-get update && apt-get install -y wget procps && \
-	wget https://mirrors.tuna.tsinghua.edu.cn/apache/hive/hive-3.1.3/apache-hive-3.1.3-bin.tar.gz && \
+RUN apt-get update && apt-get install -y wget procps
+RUN wget https://mirrors.tuna.tsinghua.edu.cn/apache/hive/hive-3.1.3/apache-hive-3.1.3-bin.tar.gz && \
 	tar -xzvf apache-hive-3.1.3-bin.tar.gz && \
 	mv apache-hive-3.1.3-bin hive
 RUN wget https://jdbc.postgresql.org/download/postgresql-9.4.1212.jar -O $HIVE_HOME/lib/postgresql-jdbc.jar && \
