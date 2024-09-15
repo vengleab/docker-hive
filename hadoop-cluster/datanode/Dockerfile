@@ -1,4 +1,4 @@
-FROM local-hadoop-cluster/base
+FROM vengleab/docker-hive:base
 
 
 HEALTHCHECK CMD curl -f http://localhost:9864/ || exit 1

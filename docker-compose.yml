@@ -4,7 +4,7 @@ services:
 
   namenode:
     build: ./hadoop-cluster/namenode
-    image: local-hadoop-cluster/namenode
+    image: vengleab/docker-hive:hadoop-namenode
     volumes:
       - namenode:/hadoop/dfs/name
     environment:
@@ -16,7 +16,7 @@ services:
       - "9000:9000"
   datanode:
     build: ./hadoop-cluster/datanode
-    image: local-hadoop-cluster/datanode
+    image: vengleab/docker-hive:hadoop-datanode
     volumes:
       - datanode:/hadoop/dfs/data
     env_file:
@@ -28,7 +28,7 @@ services:
 
   historyserver:
     build: ./hadoop-cluster/historyserver
-    image: local-hadoop-cluster/historyserver
+    image: vengleab/docker-hive:hadoop-historyserver
     depends_on:
       - namenode
       - datanode
@@ -39,7 +39,7 @@ services:
 
   nodemanager:
     build: ./hadoop-cluster/nodemanager
-    image: local-hadoop-cluster/nodemanager
+    image: vengleab/docker-hive:hadoop-nodemanager
     depends_on:
       - namenode
       - datanode
@@ -49,7 +49,7 @@ services:
       - "8042:8042"
   resourcemanager:
     build: ./hadoop-cluster/resourcemanager
-    image: local-hadoop-cluster/resourcemanager
+    image: vengleab/docker-hive:hadoop-resourcemanager
     # restart: on-failure
     depends_on:
       - namenode
@@ -59,7 +59,7 @@ services:
     ports:
       - "8088:8088"    
   hive-server:
-    image: local-hive
+    image: vengleab/docker-hive:hive
     build:
       context: .
     env_file:
@@ -70,7 +70,7 @@ services:
     ports:
       - "10000:10000"
   hive-metastore:
-    image: local-hive
+    image: vengleab/docker-hive:hive
     build:
       context: .
     env_file:

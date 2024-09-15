@@ -1,4 +1,4 @@
-FROM local-hadoop-cluster/base
+FROM vengleab/docker-hive:base
 
 # Allow buildtime config of HIVE_VERSION
 ARG HIVE_VERSION
