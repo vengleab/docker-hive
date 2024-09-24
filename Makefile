@@ -1,4 +1,3 @@
-current_branch := 3.2.1
 build: build-hadoop-base build-hive
 
 build-hadoop-base:
