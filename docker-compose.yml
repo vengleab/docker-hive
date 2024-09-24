@@ -1,6 +1,44 @@
 version: "3.5"
 
 services:
+  hue:
+    image: gethue/hue
+    user: root
+    volumes:
+      - ./hue/hue.ini:/usr/share/hue/desktop/conf/hue.ini
+    ports:
+      - "8889:8888"
+
+  spark-notebook:
+    image: vengleab/docker-hive:spark-notebook
+    build:
+      context: ./notebooks
+      dockerfile: ./Dockerfile
+    user: root
+    environment:
+      - JUPYTER_ENABLE_LAB="yes"
+      - GRANT_SUDO="yes"
+    volumes:
+      - ./notebooks:/home/jovyan/work
+      - ./notebooks/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf
+    ports:
+      - "8888:8888"
+      - "4040:4040"
+
+  minio:
+    hostname: minio
+    image: "minio/minio"
+    ports:
+      - "9002:9000"
+      - "9001:9001"
+    # volumes:
+    #   - minio-data:/data
+    environment:
+      - MINIO_ROOT_USER=minio
+      - MINIO_ROOT_PASSWORD=minio123
+      - MINIO_ACCESS_KEY=minio
+      - MINIO_SECRET_KEY=minio123
+    command: server /data --console-address ":9001"
 
   namenode:
     build: ./hadoop-cluster/namenode
@@ -57,7 +95,7 @@ services:
     env_file:
       - ./hadoop-hive.env
     ports:
-      - "8088:8088"    
+      - "8088:8088"
   hive-server:
     image: vengleab/docker-hive:hive
     build:
