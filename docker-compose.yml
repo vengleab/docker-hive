@@ -1,6 +1,20 @@
 version: "3.5"
 
 services:
+  # portainer:
+  #   image: portainer/portainer
+  #   container_name: portainer
+  #   ports:
+  #     - "3000:9000"
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #     - portainer_data:/data
+  #   labels:
+  #     io.docksal.virtual-host: "portainer.*"
+  #     io.docksal.virtual-port: "9000"
+  #   command: -H unix:///var/run/docker.sock
+  #   restart: unless-stopped
+
   # hue:
   #   image: gethue/hue
   #   user: root
@@ -13,7 +27,6 @@ services:
   #   image: vengleab/docker-hive:spark-notebook
   #   build:
   #     context: ./notebooks
-  #     dockerfile: ./Dockerfile
   #   user: root
   #   environment:
   #     - JUPYTER_ENABLE_LAB="yes"
@@ -116,6 +129,10 @@ services:
     command: /opt/hive/bin/hive --service metastore
     environment:
       SERVICE_PRECONDITION: "namenode:9870 datanode:9864 hive-metastore-postgresql:5432"
+    depends_on:
+      - hive-metastore-postgresql
+      - namenode
+      - datanode
     ports:
       - "9083:9083"
   hive-metastore-postgresql:
@@ -130,6 +147,7 @@ services:
 volumes:
   namenode:
   datanode:
+  portainer_data:
 
 # solve java.net.URISyntaxException Illegal character in hostname at index 49: thrift://docker-hive-hive-metastore-1.docker-hive_default:9083
 networks:
