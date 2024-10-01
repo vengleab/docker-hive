@@ -45,7 +45,7 @@ COPY entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # solve log version conflict
-RUN cp /opt/hadoop-3.2.1/share/hadoop/common/lib/guava-27.0-jre.jar /opt/hive/lib/
+RUN cp /opt/hadoop-3.3.6/share/hadoop/common/lib/guava-27.0-jre.jar /opt/hive/lib/
 RUN rm -rf /opt/hive/lib/guava-19.0.jar
 
 EXPOSE 10000
