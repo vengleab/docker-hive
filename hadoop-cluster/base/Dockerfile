@@ -1,4 +1,18 @@
+# Download Stage
+FROM alpine as download
+ENV DOWNLOAD_DIR /tmp
+ENV HADOOP_VERSION 3.3.6
+WORKDIR $DOWNLOAD_DIR
+# ENV HADOOP_URL https://archive.apache.org/dist/hadoop/common/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION.tar.gz (amd)
+ENV HADOOP_URL https://dlcdn.apache.org/hadoop/common/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION-aarch64.tar.gz
+RUN wget  "$HADOOP_URL" -O hadoop.tar.gz \
+    && wget  "$HADOOP_URL.asc" -O hadoop.tar.gz.asc 
+
+#================================================================================================================================
+    
 FROM ubuntu:20.04
+ENV DOWNLOAD_DIR /tmp
+ENV HADOOP_VERSION 3.3.6
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends \
       openjdk-8-jdk \
@@ -14,16 +28,13 @@ ENV JAVA_HOME=/usr/lib/jvm/java-8-openjdk-arm64/
 RUN curl -O https://dist.apache.org/repos/dist/release/hadoop/common/KEYS
 
 RUN gpg --import KEYS
-ENV HADOOP_VERSION 3.3.6
-# ENV HADOOP_URL https://archive.apache.org/dist/hadoop/common/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION.tar.gz
-ENV HADOOP_URL https://dlcdn.apache.org/hadoop/common/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION-aarch64.tar.gz
+COPY --from=download $DOWNLOAD_DIR/hadoop.tar.gz.asc $DOWNLOAD_DIR
+COPY --from=download $DOWNLOAD_DIR/hadoop.tar.gz $DOWNLOAD_DIR
 
 RUN set -x \
-    && curl  "$HADOOP_URL" -o /tmp/hadoop.tar.gz \
-    && curl  "$HADOOP_URL.asc" -o /tmp/hadoop.tar.gz.asc \
-    && gpg --verify /tmp/hadoop.tar.gz.asc \
-    && tar -xvf /tmp/hadoop.tar.gz -C /opt/ \
-    && rm /tmp/hadoop.tar.gz*
+    && gpg --verify $DOWNLOAD_DIR/hadoop.tar.gz.asc \
+    && tar -xvf $DOWNLOAD_DIR/hadoop.tar.gz -C /opt/ \
+    && rm $DOWNLOAD_DIR/hadoop.tar.gz*
 
 RUN ln -s /opt/hadoop-$HADOOP_VERSION/etc/hadoop /etc/hadoop
 
