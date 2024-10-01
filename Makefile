@@ -1,3 +1,12 @@
+start:
+	docker compose up -d
+
+stop: 
+	docker compose stop
+
+cleanup:
+	docker compose down -v
+
 build: build-hadoop-base build-hive
 
 build-hadoop-base:
