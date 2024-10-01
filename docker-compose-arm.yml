@@ -1,0 +1,172 @@
+version: "3.5"
+
+services:
+  # portainer:
+  #   image: portainer/portainer
+  #   container_name: portainer
+  #   ports:
+  #     - "3000:9000"
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #     - portainer_data:/data
+  #   labels:
+  #     io.docksal.virtual-host: "portainer.*"
+  #     io.docksal.virtual-port: "9000"
+  #   command: -H unix:///var/run/docker.sock
+  #   restart: unless-stopped
+
+  # hue:
+  #   image: gethue/hue
+  #   user: root
+  #   volumes:
+  #     - ./hue/hue.ini:/usr/share/hue/desktop/conf/hue.ini
+  #   ports:
+  #     - "8889:8888"
+
+  # spark-notebook:
+  #   image: vengleab/docker-hive-arm:spark-notebook
+  #   build:
+  #     context: ./notebooks
+  #   user: root
+  #   environment:
+  #     - JUPYTER_ENABLE_LAB="yes"
+  #     - GRANT_SUDO="yes"
+  #   volumes:
+  #     - ./notebooks:/home/jovyan/work
+  #     - ./notebooks/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf
+  #   ports:
+  #     - "8888:8888"
+  #     - "4040:4040"
+
+  minio:
+    hostname: minio
+    image: "minio/minio"
+    ports:
+      - "9002:9000"
+      - "9001:9001"
+    # volumes:
+    #   - minio-data:/data
+    environment:
+      - MINIO_ROOT_USER=minio
+      - MINIO_ROOT_PASSWORD=minio123
+      - MINIO_ACCESS_KEY=minio
+      - MINIO_SECRET_KEY=minio123
+    command: server /data --console-address ":9001"
+
+  namenode:
+    build:
+      context: ./hadoop-cluster/namenode
+      dockerfile: Dockerfile.ARM
+    image: vengleab/docker-hive-arm:hadoop-namenode
+    volumes:
+      - namenode:/hadoop/dfs/name
+    environment:
+      - CLUSTER_NAME=test
+    env_file:
+      - ./hadoop-hive.env
+    ports:
+      - "9870:9870"
+      - "9000:9000"
+
+  datanode:
+    build:
+      context: ./hadoop-cluster/datanode
+      dockerfile: Dockerfile.ARM
+    image: vengleab/docker-hive-arm:hadoop-datanode
+    volumes:
+      - datanode:/hadoop/dfs/data
+    env_file:
+      - ./hadoop-hive.env
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870"
+    ports:
+      - "9864:9864"
+
+  historyserver:
+    build:
+      context: ./hadoop-cluster/historyserver
+      dockerfile: Dockerfile.ARM
+    image: vengleab/docker-hive-arm:hadoop-historyserver
+    depends_on:
+      - namenode
+      - datanode
+    env_file:
+      - ./hadoop-hive.env
+    ports:
+      - "8188:8188"
+
+  nodemanager:
+    build:
+      context: ./hadoop-cluster/nodemanager
+      dockerfile: Dockerfile.ARM
+    image: vengleab/docker-hive-arm:hadoop-nodemanager
+    depends_on:
+      - namenode
+      - datanode
+    env_file:
+      - ./hadoop-hive.env
+    ports:
+      - "8042:8042"
+
+  resourcemanager:
+    build:
+      context: ./hadoop-cluster/resourcemanager
+      dockerfile: Dockerfile.ARM
+    image: vengleab/docker-hive-arm:hadoop-resourcemanager
+    # restart: on-failure
+    depends_on:
+      - namenode
+      - datanode
+    env_file:
+      - ./hadoop-hive.env
+    ports:
+      - "8088:8088"
+
+  hive-server:
+    image: vengleab/docker-hive-arm:hive
+    build:
+      context: .
+      dockerfile: Dockerfile.ARM
+    env_file:
+      - ./hadoop-hive.env
+    environment:
+      HIVE_CORE_CONF_javax_jdo_option_ConnectionURL: "jdbc:postgresql://hive-metastore/metastore"
+      SERVICE_PRECONDITION: "hive-metastore:9083"
+    ports:
+      - "10000:10000"
+
+  hive-metastore:
+    image: vengleab/docker-hive-arm:hive
+    build:
+      context: .
+      dockerfile: Dockerfile.ARM
+    env_file:
+      - ./hadoop-hive.env
+    command: /opt/hive/bin/hive --service metastore
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870 datanode:9864 hive-metastore-postgresql:5432"
+    depends_on:
+      - hive-metastore-postgresql
+      - namenode
+      - datanode
+    ports:
+      - "9083:9083"
+
+  hive-metastore-postgresql:
+    build:
+      context: ./docker-hive-metastore-postgresql
+    image: vengleab/docker-hive-arm:hive-metastore-postgresql
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+
+volumes:
+  namenode:
+  datanode:
+  portainer_data:
+
+# solve java.net.URISyntaxException Illegal character in hostname at index 49: thrift://docker-hive-hive-metastore-1.docker-hive_default:9083
+networks:
+  default:
+    name: docker-hive-default
