@@ -24,7 +24,7 @@ services:
   #     - "8889:8888"
 
   # spark-notebook:
-  #   image: vengleab/docker-hive:spark-notebook
+  #   image: vengleab/docker-hive-arm:spark-notebook
   #   build:
   #     context: ./notebooks
   #   user: root
@@ -54,8 +54,10 @@ services:
     command: server /data --console-address ":9001"
 
   namenode:
-    build: ./hadoop-cluster/namenode
-    image: vengleab/docker-hive:hadoop-namenode
+    build:
+      context: ./hadoop-cluster/namenode
+      dockerfile: Dockerfile.ARM
+    image: vengleab/docker-hive-arm:hadoop-namenode
     volumes:
       - namenode:/hadoop/dfs/name
     environment:
@@ -65,9 +67,12 @@ services:
     ports:
       - "9870:9870"
       - "9000:9000"
+
   datanode:
-    build: ./hadoop-cluster/datanode
-    image: vengleab/docker-hive:hadoop-datanode
+    build:
+      context: ./hadoop-cluster/datanode
+      dockerfile: Dockerfile.ARM
+    image: vengleab/docker-hive-arm:hadoop-datanode
     volumes:
       - datanode:/hadoop/dfs/data
     env_file:
@@ -78,8 +83,10 @@ services:
       - "9864:9864"
 
   historyserver:
-    build: ./hadoop-cluster/historyserver
-    image: vengleab/docker-hive:hadoop-historyserver
+    build:
+      context: ./hadoop-cluster/historyserver
+      dockerfile: Dockerfile.ARM
+    image: vengleab/docker-hive-arm:hadoop-historyserver
     depends_on:
       - namenode
       - datanode
@@ -89,8 +96,10 @@ services:
       - "8188:8188"
 
   nodemanager:
-    build: ./hadoop-cluster/nodemanager
-    image: vengleab/docker-hive:hadoop-nodemanager
+    build:
+      context: ./hadoop-cluster/nodemanager
+      dockerfile: Dockerfile.ARM
+    image: vengleab/docker-hive-arm:hadoop-nodemanager
     depends_on:
       - namenode
       - datanode
@@ -98,9 +107,12 @@ services:
       - ./hadoop-hive.env
     ports:
       - "8042:8042"
+
   resourcemanager:
-    build: ./hadoop-cluster/resourcemanager
-    image: vengleab/docker-hive:hadoop-resourcemanager
+    build:
+      context: ./hadoop-cluster/resourcemanager
+      dockerfile: Dockerfile.ARM
+    image: vengleab/docker-hive-arm:hadoop-resourcemanager
     # restart: on-failure
     depends_on:
       - namenode
@@ -109,10 +121,12 @@ services:
       - ./hadoop-hive.env
     ports:
       - "8088:8088"
+
   hive-server:
-    image: vengleab/docker-hive:hive
+    image: vengleab/docker-hive-arm:hive
     build:
       context: .
+      dockerfile: Dockerfile.ARM
     env_file:
       - ./hadoop-hive.env
     environment:
@@ -120,10 +134,12 @@ services:
       SERVICE_PRECONDITION: "hive-metastore:9083"
     ports:
       - "10000:10000"
+
   hive-metastore:
-    image: vengleab/docker-hive:hive
+    image: vengleab/docker-hive-arm:hive
     build:
       context: .
+      dockerfile: Dockerfile.ARM
     env_file:
       - ./hadoop-hive.env
     command: /opt/hive/bin/hive --service metastore
@@ -135,10 +151,11 @@ services:
       - datanode
     ports:
       - "9083:9083"
+
   hive-metastore-postgresql:
     build:
       context: ./docker-hive-metastore-postgresql
-    image: vengleab/docker-hive:hive-metastore-postgresql
+    image: vengleab/docker-hive-arm:hive-metastore-postgresql
     ports:
       - "5432:5432"
     environment:

@@ -15,7 +15,7 @@ RUN wget  "$PG_JAR_URL" -O postgresql-jdbc.jar
 
 #================================================================================================================================
 
-FROM vengleab/docker-hive:base
+FROM vengleab/docker-hive-arm:base
 # Set HIVE_VERSION from arg if provided at build, env if provided at run, or default
 # https://docs.docker.com/engine/reference/builder/#using-arg-variables
 # https://docs.docker.com/engine/reference/builder/#environment-replacement
@@ -59,7 +59,8 @@ COPY entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # solve log version conflict
-RUN cp /opt/hadoop-3.3.6/share/hadoop/common/lib/guava-27.0-jre.jar /opt/hive/lib/
+RUN ls /opt
+RUN cp $HADOOP_HOME/share/hadoop/common/lib/guava-27.0-jre.jar $HIVE_HOME/lib/
 RUN rm -rf /opt/hive/lib/guava-19.0.jar
 
 EXPOSE 10000
