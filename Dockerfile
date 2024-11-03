@@ -2,14 +2,12 @@
 FROM alpine as download
 ENV DOWNLOAD_DIR /tmp
 WORKDIR $DOWNLOAD_DIR
-# ENV HADOOP_URL https://archive.apache.org/dist/hadoop/common/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION.tar.gz (amd)
-ENV HIVE_URL https://downloads.apache.org/hive/hive-3.1.3/apache-hive-3.1.3-bin.tar.gz
+ENV HIVE_URL https://archive.apache.org/dist/hive/hive-3.1.3/apache-hive-3.1.3-bin.tar.gz
 RUN wget -O apache-hive.tar.gz "$HIVE_URL" 
 
 FROM alpine as download-pg
 ENV DOWNLOAD_DIR /tmp
 WORKDIR $DOWNLOAD_DIR
-# ENV HADOOP_URL https://archive.apache.org/dist/hadoop/common/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION.tar.gz (amd)
 ENV PG_JAR_URL https://jdbc.postgresql.org/download/postgresql-9.4.1212.jar
 RUN wget  "$PG_JAR_URL" -O postgresql-jdbc.jar
 
@@ -59,7 +57,7 @@ COPY entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # solve log version conflict
-RUN cp /opt/hadoop-3.3.6/share/hadoop/common/lib/guava-27.0-jre.jar /opt/hive/lib/
+RUN cp /opt/hadoop/share/hadoop/common/lib/guava-27.0-jre.jar /opt/hive/lib/
 RUN rm -rf /opt/hive/lib/guava-19.0.jar
 
 EXPOSE 10000

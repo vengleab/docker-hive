@@ -33,15 +33,16 @@ COPY --from=download $DOWNLOAD_DIR/hadoop.tar.gz $DOWNLOAD_DIR
 RUN set -x \
     && gpg --verify $DOWNLOAD_DIR/hadoop.tar.gz.asc \
     && tar -xvf $DOWNLOAD_DIR/hadoop.tar.gz -C /opt/ \
+    && mv /opt/hadoop-$HADOOP_VERSION /opt/hadoop \
     && rm $DOWNLOAD_DIR/hadoop.tar.gz*
 
-RUN ln -s /opt/hadoop-$HADOOP_VERSION/etc/hadoop /etc/hadoop
+RUN ln -s /opt/hadoop/etc/hadoop /etc/hadoop
 
-RUN mkdir /opt/hadoop-$HADOOP_VERSION/logs
+RUN mkdir /opt/hadoop/logs
 
 RUN mkdir /hadoop-data
 
-ENV HADOOP_HOME=/opt/hadoop-$HADOOP_VERSION
+ENV HADOOP_HOME=/opt/hadoop
 ENV HADOOP_CONF_DIR=/etc/hadoop
 ENV MULTIHOMED_NETWORK=1
 ENV USER=root
