@@ -28,12 +28,11 @@ WORKDIR /opt
 COPY --from=download $DOWNLOAD_DIR/apache-hive.tar.gz .
 COPY --from=download-pg $DOWNLOAD_DIR/postgresql-jdbc.jar $HIVE_HOME/lib/postgresql-jdbc.jar
 #Install Hive and PostgreSQL JDBC
-RUN apt-get update && apt-get install -y wget procps
+RUN apt-get update && apt-get install -y procps
 RUN tar -xzvf apache-hive.tar.gz && \
 	rm apache-hive.tar.gz && \
 	rm -r hive && \
-	mv apache-hive-3.1.3-bin hive
-RUN apt-get --purge remove -y wget && \
+	mv apache-hive-3.1.3-bin hive && \
 	apt-get clean && \
 	rm -rf /var/lib/apt/lists/*
 
