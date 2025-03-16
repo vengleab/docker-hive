@@ -1,4 +1,4 @@
-FROM vengleab/docker-hive:base
+FROM vengleab/docker-hive-multi:base
 
 HEALTHCHECK CMD curl -f http://localhost:8088/ || exit 1
 

@@ -36,6 +36,25 @@ stop:
 cleanup:
 	docker compose down -v
 
+# New buildx commands for multi-platform builds
+buildx-init:
+	docker buildx create --name multiarch --use || true
+
+buildx: buildx-init buildx-hadoop-base buildx-hive
+
+buildx-hadoop-base:
+	docker buildx build --platform linux/amd64,linux/arm64 \
+		-t vengleab/docker-hive-multi:base \
+		--push \
+		./hadoop-cluster/base
+
+buildx-hive:
+	docker buildx build --platform linux/amd64,linux/arm64 \
+		-t vengleab/docker-hive-multi:hive \
+		--push \
+		./
+
+# Keep existing build commands for backward compatibility
 build: build-hadoop-base build-hive
 	docker compose build
 

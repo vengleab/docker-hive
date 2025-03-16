@@ -1,4 +1,4 @@
-FROM vengleab/docker-hive:base
+FROM vengleab/docker-hive-multi:base
 
 COPY WordCount.jar /opt/hadoop/applications/WordCount.jar
 
