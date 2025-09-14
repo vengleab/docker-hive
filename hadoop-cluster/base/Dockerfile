@@ -3,9 +3,19 @@ FROM alpine as download
 ENV DOWNLOAD_DIR /tmp
 ENV HADOOP_VERSION 3.3.6
 WORKDIR $DOWNLOAD_DIR
-ENV HADOOP_URL https://archive.apache.org/dist/hadoop/common/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION.tar.gz
-RUN wget  "$HADOOP_URL" -O hadoop.tar.gz \
-    && wget  "$HADOOP_URL.asc" -O hadoop.tar.gz.asc 
+
+# Use ARG to determine architecture-specific URL during build
+ARG TARGETARCH
+ENV HADOOP_URL=https://archive.apache.org/dist/hadoop/common/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION.tar.gz
+ENV HADOOP_URL_ARM=https://dlcdn.apache.org/hadoop/common/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION-aarch64.tar.gz
+
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        wget "$HADOOP_URL_ARM" -O hadoop.tar.gz && \
+        wget "$HADOOP_URL_ARM.asc" -O hadoop.tar.gz.asc; \
+    else \
+        wget "$HADOOP_URL" -O hadoop.tar.gz && \
+        wget "$HADOOP_URL.asc" -O hadoop.tar.gz.asc; \
+    fi
 
 #================================================================================================================================
     
@@ -21,8 +31,10 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
       gnupg \
       libsnappy-dev \
     && rm -rf /var/lib/apt/lists/*
-      
-ENV JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64/
+
+# Set JAVA_HOME based on architecture
+ARG TARGETARCH
+ENV JAVA_HOME=/usr/lib/jvm/java-8-openjdk-${TARGETARCH/amd64/amd64}/
 
 RUN curl -O https://dist.apache.org/repos/dist/release/hadoop/common/KEYS
 

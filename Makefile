@@ -1,34 +1,5 @@
-ENV_FILE := hadoop-hive.env
-JAVA_HOME_AMD := /usr/lib/jvm/java-8-openjdk-amd64/
-JAVA_HOME_ARM := /usr/lib/jvm/java-8-openjdk-arm64/
-
-update-env:
-	@if grep -q "^JAVA_HOME=" $(ENV_FILE); then \
-	    sed -i "s|^JAVA_HOME=.*|JAVA_HOME=$(JAVA_HOME_AMD)|" $(ENV_FILE); \
-	else \
-	    echo "JAVA_HOME=$(JAVA_HOME_AMD)" >> $(ENV_FILE); \
-	fi
-
-update-arm-env:
-	@if grep -q "^JAVA_HOME=" $(ENV_FILE); then \
-	    sed -i "s|^JAVA_HOME=.*|JAVA_HOME=$(JAVA_HOME_ARM)|" $(ENV_FILE); \
-	else \
-	    echo "JAVA_HOME=$(JAVA_HOME_ARM)" >> $(ENV_FILE); \
-	fi
-
-
-
-start: update-env
+start:
 	docker compose up -d
-
-start-arm: update-arm-env
-	docker compose -f docker-compose-arm.yml up -d
-
-stop-arm:
-	docker compose -f docker-compose-arm.yml stop
-
-cleanup-arm:
-	docker compose -f docker-compose-arm.yml down -v
 
 stop: 
 	docker compose stop
@@ -36,20 +7,69 @@ stop:
 cleanup:
 	docker compose down -v
 
-build: build-hadoop-base build-hive
-	docker compose build
+# New buildx commands for multi-platform builds
+buildx-init:
+	docker buildx create --name multiarch --use || true
 
-build-arm: build-hadoop-base-arm build-hive-arm
-	docker compose -f docker-compose-arm.yml build
+buildx: buildx-init buildx-hadoop-base buildx-hive buildx-namenode buildx-datanode buildx-historyserver buildx-nodemanager buildx-resourcemanager buildx-hive-metastore buildx-hive-metastore-postgresql
 
-build-hadoop-base:
-	docker build -t vengleab/docker-hive:base ./hadoop-cluster/base
+buildx-hadoop-base:
+	docker buildx build --platform linux/amd64,linux/arm64 \
+		-t vengleab/docker-hive-multi:base \
+		--push \
+		./hadoop-cluster/base
 
-build-hive:
-	docker build -t vengleab/docker-hive:hive ./
+buildx-hive:
+	docker buildx build --platform linux/amd64,linux/arm64 \
+		-t vengleab/docker-hive-multi:hive \
+		--push \
+		./
 
-build-hadoop-base-arm:
-	docker build -t vengleab/docker-hive-arm:base ./hadoop-cluster/base-arm
+# New buildx commands for additional services
+buildx-namenode:
+	docker buildx build --platform linux/amd64,linux/arm64 \
+		-t vengleab/docker-hive-multi:hadoop-namenode \
+		--push \
+		./hadoop-cluster/namenode
 
-build-hive-arm:
-	docker build -t vengleab/docker-hive-arm:hive ./ -f Dockerfile.ARM
+buildx-datanode:
+	docker buildx build --platform linux/amd64,linux/arm64 \
+		-t vengleab/docker-hive-multi:hadoop-datanode \
+		--push \
+		./hadoop-cluster/datanode
+
+buildx-historyserver:
+	docker buildx build --platform linux/amd64,linux/arm64 \
+		-t vengleab/docker-hive-multi:hadoop-historyserver \
+		--push \
+		./hadoop-cluster/historyserver
+
+buildx-nodemanager:
+	docker buildx build --platform linux/amd64,linux/arm64 \
+		-t vengleab/docker-hive-multi:hadoop-nodemanager \
+		--push \
+		./hadoop-cluster/nodemanager
+
+buildx-resourcemanager:
+	docker buildx build --platform linux/amd64,linux/arm64 \
+		-t vengleab/docker-hive-multi:hadoop-resourcemanager \
+		--push \
+		./hadoop-cluster/resourcemanager
+
+buildx-hive-metastore:
+	docker buildx build --platform linux/amd64,linux/arm64 \
+		-t vengleab/docker-hive-multi:hive-metastore \
+		--push \
+		./
+
+buildx-hive-metastore-postgresql:
+	docker buildx build --platform linux/amd64,linux/arm64 \
+		-t vengleab/docker-hive-multi:hive-metastore-postgresql \
+		--push \
+		./docker-hive-metastore-postgresql
+
+buildx-spark-notebook:
+	docker buildx build --platform linux/amd64,linux/arm64 \
+		-t vengleab/docker-hive-multi:spark-notebook \
+		--push \
+		./notebooks

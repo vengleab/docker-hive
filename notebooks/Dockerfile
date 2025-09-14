@@ -19,19 +19,19 @@ RUN wget https://repo1.maven.org/maven2/software/amazon/awssdk/s3/2.20.152/s3-2.
 FROM alpine as download-spark
 ENV DOWNLOAD_DIR=/tmp
 WORKDIR $DOWNLOAD_DIR
-RUN wget https://archive.apache.org/dist/spark/spark-3.3.1/spark-3.3.1-bin-hadoop3.tgz \
-    && tar zxvf $DOWNLOAD_DIR/spark-3.3.1-bin-hadoop3.tgz \
-    && rm -rf $DOWNLOAD_DIR/spark-3.3.1-bin-hadoop3.tgz
+RUN wget https://dlcdn.apache.org/spark/spark-3.5.5/spark-3.5.5-bin-hadoop3.tgz \
+    && tar zxvf $DOWNLOAD_DIR/spark-3.5.5-bin-hadoop3.tgz \
+    && rm -rf $DOWNLOAD_DIR/spark-3.5.5-bin-hadoop3.tgz
 
 FROM jupyter/all-spark-notebook:python-3.8
 ENV DOWNLOAD_DIR=/tmp
 USER root 
 
-COPY --from=download-spark $DOWNLOAD_DIR/spark-3.3.1-bin-hadoop3 $DOWNLOAD_DIR/spark-3.3.1-bin-hadoop3
+COPY --from=download-spark $DOWNLOAD_DIR/spark-3.5.5-bin-hadoop3 $DOWNLOAD_DIR/spark-3.5.5-bin-hadoop3
 RUN cd $DOWNLOAD_DIR \
-    && mv spark-3.3.1-bin-hadoop3/ /usr/local/ \
+    && mv spark-3.5.5-bin-hadoop3/ /usr/local/ \
     && rm -rf /usr/local/spark \
     && rm -rf /usr/local/spark-3.3.0-bin-hadoop3 \
-    && ln -s /usr/local/spark-3.3.1-bin-hadoop3 /usr/local/spark
+    && ln -s /usr/local/spark-3.5.5-bin-hadoop3 /usr/local/spark
 
 COPY --from=download /tmp/*.jar /usr/local/spark/jars

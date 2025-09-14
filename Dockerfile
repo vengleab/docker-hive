@@ -13,7 +13,7 @@ RUN wget  "$PG_JAR_URL" -O postgresql-jdbc.jar
 
 #================================================================================================================================
 
-FROM vengleab/docker-hive:base
+FROM vengleab/docker-hive-multi:base
 # Set HIVE_VERSION from arg if provided at build, env if provided at run, or default
 # https://docs.docker.com/engine/reference/builder/#using-arg-variables
 # https://docs.docker.com/engine/reference/builder/#environment-replacement
@@ -27,15 +27,18 @@ WORKDIR /opt
 
 COPY --from=download $DOWNLOAD_DIR/apache-hive.tar.gz .
 COPY --from=download-pg $DOWNLOAD_DIR/postgresql-jdbc.jar $HIVE_HOME/lib/postgresql-jdbc.jar
-#Install Hive and PostgreSQL JDBC
-RUN apt-get update && apt-get install -y procps
-RUN tar -xzvf apache-hive.tar.gz && \
-	rm apache-hive.tar.gz && \
-	rm -r hive && \
-	mv apache-hive-3.1.3-bin hive && \
-	apt-get clean && \
-	rm -rf /var/lib/apt/lists/*
 
+#Install Hive and PostgreSQL JDBC
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        apt-get update && apt-get install -y procps; \
+    fi
+
+RUN tar -xzvf apache-hive.tar.gz && \
+    rm apache-hive.tar.gz && \
+    rm -r hive && \
+    mv apache-hive-3.1.3-bin hive && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 #Spark should be compiled with Hive to be able to use it
 #hive-site.xml should be copied to $SPARK_HOME/conf folder
