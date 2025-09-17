@@ -1,30 +1,50 @@
-# Download Stage
-FROM alpine as download
-ENV DOWNLOAD_DIR /tmp
-ENV HADOOP_VERSION 3.3.6
-WORKDIR $DOWNLOAD_DIR
+# Download and prepare stage
+FROM alpine:3.18 as builder
+ENV HADOOP_VERSION=3.3.6
+WORKDIR /tmp
 
 # Use ARG to determine architecture-specific URL during build
 ARG TARGETARCH
-ENV HADOOP_URL=https://archive.apache.org/dist/hadoop/common/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION.tar.gz
+ENV HADOOP_URL=https://dlcdn.apache.org/hadoop/common/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION.tar.gz
 ENV HADOOP_URL_ARM=https://dlcdn.apache.org/hadoop/common/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION-aarch64.tar.gz
 
-RUN if [ "$TARGETARCH" = "arm64" ]; then \
+# Download, verify, extract and clean up in single layer
+RUN apk add --no-cache wget gnupg && \
+    if [ "$TARGETARCH" = "arm64" ]; then \
         wget "$HADOOP_URL_ARM" -O hadoop.tar.gz && \
         wget "$HADOOP_URL_ARM.asc" -O hadoop.tar.gz.asc; \
     else \
         wget "$HADOOP_URL" -O hadoop.tar.gz && \
         wget "$HADOOP_URL.asc" -O hadoop.tar.gz.asc; \
-    fi
+    fi && \
+    wget -O KEYS https://dist.apache.org/repos/dist/release/hadoop/common/KEYS && \
+    gpg --import KEYS && \
+    gpg --verify hadoop.tar.gz.asc && \
+    tar -xzf hadoop.tar.gz && \
+    mv hadoop-$HADOOP_VERSION hadoop && \
+    # Remove unnecessary files to reduce size
+    rm -rf hadoop/share/doc \
+        hadoop/share/hadoop/yarn/test \
+        hadoop/share/hadoop/mapreduce/sources \
+        hadoop/share/hadoop/hdfs/sources \
+        hadoop/share/hadoop/common/sources \
+        hadoop/share/hadoop/*/lib-examples \
+        hadoop/share/hadoop/*/jdiff \
+        KEYS hadoop.tar.gz* ~/.gnupg
 
 #================================================================================================================================
     
-FROM ubuntu:20.04
-ENV DOWNLOAD_DIR /tmp
-ENV HADOOP_VERSION 3.3.6
+# Runtime stage - use Alpine with JRE only
+FROM openjdk:11-jre
+
+ENV HADOOP_VERSION=3.3.6
+ENV HADOOP_HOME=/opt/hadoop
+ENV HADOOP_CONF_DIR=/etc/hadoop
+ENV MULTIHOMED_NETWORK=1
+ENV USER=root
+ENV PATH=$HADOOP_HOME/bin/:$PATH
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends \
-      openjdk-8-jdk \
       net-tools \
       curl \
       netcat-traditional \
@@ -32,36 +52,27 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
       libsnappy-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Set JAVA_HOME based on architecture
-ARG TARGETARCH
-ENV JAVA_HOME=/usr/lib/jvm/java-8-openjdk-${TARGETARCH/amd64/amd64}/
+# Install minimal runtime dependencies in single layer
+# RUN apk add --no-cache \
+#     bash \
+#     curl \
+#     netcat-openbsd \
+#     perl \
+#     snappy \
+#     && rm -rf /var/cache/apk/*
 
-RUN curl -O https://dist.apache.org/repos/dist/release/hadoop/common/KEYS
+# Copy optimized Hadoop installation
+COPY --from=builder /tmp/hadoop /opt/hadoop
 
-RUN gpg --import KEYS
-COPY --from=download $DOWNLOAD_DIR/hadoop.tar.gz.asc $DOWNLOAD_DIR
-COPY --from=download $DOWNLOAD_DIR/hadoop.tar.gz $DOWNLOAD_DIR
+# Setup directories and permissions in single layer
+RUN mkdir -p /opt/hadoop/logs /hadoop-data && \
+    ln -s /opt/hadoop/etc/hadoop /etc/hadoop && \
+    # Remove any remaining unnecessary files
+    find /opt/hadoop -name "*.cmd" -delete && \
+    find /opt/hadoop -name "*.bat" -delete
 
-RUN set -x \
-    && gpg --verify $DOWNLOAD_DIR/hadoop.tar.gz.asc \
-    && tar -xvf $DOWNLOAD_DIR/hadoop.tar.gz -C /opt/ \
-    && mv /opt/hadoop-$HADOOP_VERSION /opt/hadoop \
-    && rm $DOWNLOAD_DIR/hadoop.tar.gz*
-
-RUN ln -s /opt/hadoop/etc/hadoop /etc/hadoop
-
-RUN mkdir /opt/hadoop/logs
-
-RUN mkdir /hadoop-data
-
-ENV HADOOP_HOME=/opt/hadoop
-ENV HADOOP_CONF_DIR=/etc/hadoop
-ENV MULTIHOMED_NETWORK=1
-ENV USER=root
-ENV PATH $HADOOP_HOME/bin/:$PATH
-
-ADD entrypoint.sh /entrypoint.sh
-
-RUN chmod a+x /entrypoint.sh
+# Copy and setup entrypoint
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]

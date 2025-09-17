@@ -13,7 +13,7 @@ RUN wget  "$PG_JAR_URL" -O postgresql-jdbc.jar
 
 #================================================================================================================================
 
-FROM vengleab/docker-hive-multi:base
+FROM vengleab/docker-hive-mini:base
 # Set HIVE_VERSION from arg if provided at build, env if provided at run, or default
 # https://docs.docker.com/engine/reference/builder/#using-arg-variables
 # https://docs.docker.com/engine/reference/builder/#environment-replacement
