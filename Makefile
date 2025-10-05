@@ -23,7 +23,7 @@ buildx-hive:
 	docker buildx build --platform linux/amd64,linux/arm64 \
 		-t vengleab/docker-hive-mini:hive \
 		--push \
-		./
+		./apache-hive
 
 # New buildx commands for additional services
 buildx-namenode:
@@ -55,12 +55,6 @@ buildx-resourcemanager:
 		-t vengleab/docker-hive-mini:hadoop-resourcemanager \
 		--push \
 		./hadoop-cluster/resourcemanager
-
-buildx-hive-metastore:
-	docker buildx build --platform linux/amd64,linux/arm64 \
-		-t vengleab/docker-hive-mini:hive-metastore \
-		--push \
-		./
 
 buildx-hive-metastore-postgresql:
 	docker buildx build --platform linux/amd64,linux/arm64 \

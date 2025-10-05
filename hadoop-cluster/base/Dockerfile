@@ -35,7 +35,7 @@ RUN apk add --no-cache wget gnupg && \
 #================================================================================================================================
     
 # Runtime stage - use Alpine with JRE only
-FROM openjdk:11-jre
+FROM openjdk:8-jre
 
 ENV HADOOP_VERSION=3.3.6
 ENV HADOOP_HOME=/opt/hadoop

@@ -15,13 +15,13 @@ services:
     command: -H unix:///var/run/docker.sock
     restart: unless-stopped
 
-  # hue:
-  #   image: gethue/hue
-  #   user: root
-  #   volumes:
-  #     - ./hue/hue.ini:/usr/share/hue/desktop/conf/hue.ini
-  #   ports:
-  #     - "8889:8888"
+  hue:
+    image: gethue/hue
+    user: root
+    volumes:
+      - ./hue/hue.ini:/usr/share/hue/desktop/conf/hue.ini
+    ports:
+      - "8889:8888"
 
   # spark-notebook:
   #   image: vengleab/docker-hive-mini:spark-notebook
@@ -109,40 +109,40 @@ services:
       - ./hadoop-hive.env
     ports:
       - "8088:8088"
-  # hive-server:
-  #   image: vengleab/docker-hive-mini:hive
-  #   build:
-  #     context: .
-  #   env_file:
-  #     - ./hadoop-hive.env
-  #   environment:
-  #     HIVE_CORE_CONF_javax_jdo_option_ConnectionURL: "jdbc:postgresql://hive-metastore/metastore"
-  #     SERVICE_PRECONDITION: "hive-metastore:9083"
-  #   ports:
-  #     - "10000:10000"
-  # hive-metastore:
-  #   image: vengleab/docker-hive-mini:hive-metastore
-  #   build:
-  #     context: .
-  #   env_file:
-  #     - ./hadoop-hive.env
-  #   command: /opt/hive/bin/hive --service metastore
-  #   environment:
-  #     SERVICE_PRECONDITION: "namenode:9870 datanode:9864 hive-metastore-postgresql:5432"
-  #   depends_on:
-  #     - hive-metastore-postgresql
-  #     - namenode
-  #     - datanode
-  #   ports:
-  #     - "9083:9083"
-  # hive-metastore-postgresql:
-  #   build:
-  #     context: ./docker-hive-metastore-postgresql
-  #   image: vengleab/docker-hive-mini:hive-metastore-postgresql
-  #   ports:
-  #     - "5432:5432"
-  #   environment:
-  #     POSTGRES_HOST_AUTH_METHOD: trust
+  hive-server:
+    image: vengleab/docker-hive-mini:hive
+    build:
+      context: ./apache-hive/.
+    env_file:
+      - ./hadoop-hive.env
+    environment:
+      HIVE_CORE_CONF_javax_jdo_option_ConnectionURL: "jdbc:postgresql://hive-metastore/metastore"
+      SERVICE_PRECONDITION: "hive-metastore:9083"
+    ports:
+      - "10000:10000"
+  hive-metastore:
+    image: vengleab/docker-hive-mini:hive
+    build:
+      context: ./apache-hive/.
+    env_file:
+      - ./hadoop-hive.env
+    command: /opt/hive/bin/hive --service metastore
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870 datanode:9864 hive-metastore-postgresql:5432"
+    depends_on:
+      - hive-metastore-postgresql
+      - namenode
+      - datanode
+    ports:
+      - "9083:9083"
+  hive-metastore-postgresql:
+    build:
+      context: ./docker-hive-metastore-postgresql
+    image: vengleab/docker-hive-mini:hive-metastore-postgresql
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
 
 volumes:
   namenode:
