@@ -23,20 +23,20 @@ services:
     ports:
       - "8889:8888"
 
-  # spark-notebook:
-  #   image: vengleab/docker-hive-mini:spark-notebook
-  #   build:
-  #     context: ./notebooks
-  #   user: root
-  #   environment:
-  #     - JUPYTER_ENABLE_LAB="yes"
-  #     - GRANT_SUDO="yes"
-  #   volumes:
-  #     - ./notebooks:/home/jovyan/work
-  #     - ./notebooks/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf
-  #   ports:
-  #     - "8888:8888"
-  #     - "4040:4040"
+  spark-notebook:
+    image: vengleab/docker-hive-multi:spark-notebook
+    build:
+      context: ./notebooks
+    user: root
+    environment:
+      - JUPYTER_ENABLE_LAB="yes"
+      - GRANT_SUDO="yes"
+    volumes:
+      - ./notebooks:/home/jovyan/work
+      - ./notebooks/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf
+    ports:
+      - "8888:8888"
+      - "4040:4040"
 
   # minio:
   #   hostname: minio
@@ -138,7 +138,7 @@ services:
   hive-metastore-postgresql:
     build:
       context: ./docker-hive-metastore-postgresql
-    image: vengleab/docker-hive-mini:hive-metastore-postgresql
+    image: vengleab/docker-hive-multi:hive-metastore-postgresql
     ports:
       - "5432:5432"
     environment:
