@@ -1,61 +1,61 @@
 version: "3.5"
 
 services:
-  # portainer:
-  #   image: portainer/portainer
-  #   container_name: portainer
-  #   ports:
-  #     - "3000:9000"
-  #   volumes:
-  #     - /var/run/docker.sock:/var/run/docker.sock
-  #     - portainer_data:/data
-  #   labels:
-  #     io.docksal.virtual-host: "portainer.*"
-  #     io.docksal.virtual-port: "9000"
-  #   command: -H unix:///var/run/docker.sock
-  #   restart: unless-stopped
-
-  # hue:
-  #   image: gethue/hue
-  #   user: root
-  #   volumes:
-  #     - ./hue/hue.ini:/usr/share/hue/desktop/conf/hue.ini
-  #   ports:
-  #     - "8889:8888"
-
-  spark-notebook:
-    image: vengleab/docker-hive-multi:spark-notebook
-    build:
-      context: ./notebooks
-    user: root
-    environment:
-      - JUPYTER_ENABLE_LAB="yes"
-      - GRANT_SUDO="yes"
+  portainer:
+    image: portainer/portainer
+    container_name: portainer
+    ports:
+      - "3000:9000"
     volumes:
-      - ./notebooks:/home/jovyan/work
-      - ./notebooks/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf
-    ports:
-      - "8888:8888"
-      - "4040:4040"
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    labels:
+      io.docksal.virtual-host: "portainer.*"
+      io.docksal.virtual-port: "9000"
+    command: -H unix:///var/run/docker.sock
+    restart: unless-stopped
 
-  minio:
-    hostname: minio
-    image: "minio/minio"
+  hue:
+    image: gethue/hue
+    user: root
+    volumes:
+      - ./hue/hue.ini:/usr/share/hue/desktop/conf/hue.ini
     ports:
-      - "9002:9000"
-      - "9001:9001"
-    # volumes:
-    #   - minio-data:/data
-    environment:
-      - MINIO_ROOT_USER=minio
-      - MINIO_ROOT_PASSWORD=minio123
-      - MINIO_ACCESS_KEY=minio
-      - MINIO_SECRET_KEY=minio123
-    command: server /data --console-address ":9001"
+      - "8889:8888"
+
+  # spark-notebook:
+  #   image: vengleab/docker-hive-mini:spark-notebook
+  #   build:
+  #     context: ./notebooks
+  #   user: root
+  #   environment:
+  #     - JUPYTER_ENABLE_LAB="yes"
+  #     - GRANT_SUDO="yes"
+  #   volumes:
+  #     - ./notebooks:/home/jovyan/work
+  #     - ./notebooks/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf
+  #   ports:
+  #     - "8888:8888"
+  #     - "4040:4040"
+
+  # minio:
+  #   hostname: minio
+  #   image: "minio/minio"
+  #   ports:
+  #     - "9002:9000"
+  #     - "9001:9001"
+  #   # volumes:
+  #   #   - minio-data:/data
+  #   environment:
+  #     - MINIO_ROOT_USER=minio
+  #     - MINIO_ROOT_PASSWORD=minio123
+  #     - MINIO_ACCESS_KEY=minio
+  #     - MINIO_SECRET_KEY=minio123
+  #   command: server /data --console-address ":9001"
 
   namenode:
     build: ./hadoop-cluster/namenode
-    image: vengleab/docker-hive-multi:hadoop-namenode
+    image: vengleab/docker-hive-mini:hadoop-namenode
     volumes:
       - namenode:/hadoop/dfs/name
     environment:
@@ -67,7 +67,7 @@ services:
       - "9000:9000"
   datanode:
     build: ./hadoop-cluster/datanode
-    image: vengleab/docker-hive-multi:hadoop-datanode
+    image: vengleab/docker-hive-mini:hadoop-datanode
     volumes:
       - datanode:/hadoop/dfs/data
     env_file:
@@ -79,7 +79,7 @@ services:
 
   historyserver:
     build: ./hadoop-cluster/historyserver
-    image: vengleab/docker-hive-multi:hadoop-historyserver
+    image: vengleab/docker-hive-mini:hadoop-historyserver
     depends_on:
       - namenode
       - datanode
@@ -90,7 +90,7 @@ services:
 
   nodemanager:
     build: ./hadoop-cluster/nodemanager
-    image: vengleab/docker-hive-multi:hadoop-nodemanager
+    image: vengleab/docker-hive-mini:hadoop-nodemanager
     depends_on:
       - namenode
       - datanode
@@ -100,7 +100,7 @@ services:
       - "8042:8042"
   resourcemanager:
     build: ./hadoop-cluster/resourcemanager
-    image: vengleab/docker-hive-multi:hadoop-resourcemanager
+    image: vengleab/docker-hive-mini:hadoop-resourcemanager
     depends_on:
       - namenode
       - datanode
@@ -110,9 +110,9 @@ services:
     ports:
       - "8088:8088"
   hive-server:
-    image: vengleab/docker-hive-multi:hive
+    image: vengleab/docker-hive-mini:hive
     build:
-      context: .
+      context: ./apache-hive/.
     env_file:
       - ./hadoop-hive.env
     environment:
@@ -121,9 +121,9 @@ services:
     ports:
       - "10000:10000"
   hive-metastore:
-    image: vengleab/docker-hive-multi:hive-metastore
+    image: vengleab/docker-hive-mini:hive
     build:
-      context: .
+      context: ./apache-hive/.
     env_file:
       - ./hadoop-hive.env
     command: /opt/hive/bin/hive --service metastore
@@ -138,7 +138,7 @@ services:
   hive-metastore-postgresql:
     build:
       context: ./docker-hive-metastore-postgresql
-    image: vengleab/docker-hive-multi:hive-metastore-postgresql
+    image: vengleab/docker-hive-mini:hive-metastore-postgresql
     ports:
       - "5432:5432"
     environment:
