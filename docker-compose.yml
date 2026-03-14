@@ -145,7 +145,7 @@ services:
   hive-metastore-postgresql:
     build:
       context: ./docker-hive-metastore-postgresql
-    image: vengleab/docker-hive-mini:hive-metastore-postgresql
+    image: vengleab/docker-hive-multi:hive-metastore-postgresql
     ports:
       - "5432:5432"
     environment:
