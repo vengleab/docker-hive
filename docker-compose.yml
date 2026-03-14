@@ -1,9 +1,9 @@
 version: "3.5"
+# name: docker-hive-mini
 
 services:
   portainer:
     image: portainer/portainer
-    container_name: portainer
     ports:
       - "3000:9000"
     volumes:
@@ -28,12 +28,19 @@ services:
     build:
       context: ./notebooks
     user: root
+    env_file:
+      - ./hadoop-hive.env
     environment:
       - JUPYTER_ENABLE_LAB="yes"
       - GRANT_SUDO="yes"
+      - SPARK_CONF_DIR=/home/jovyan/work
+      - HADOOP_CONF_DIR=/home/jovyan/hadoop-conf
+      # - PYSPARK_PYTHON=python3.9
+      # - PYSPARK_DRIVER_PYTHON=python3.9
     volumes:
       - ./notebooks:/home/jovyan/work
       - ./notebooks/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf
+      - ./notebooks/hadoop-config.sh:/usr/local/bin/before-notebook.d/hadoop-config.sh
     ports:
       - "8888:8888"
       - "4040:4040"
