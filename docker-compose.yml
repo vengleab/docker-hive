@@ -1,5 +1,5 @@
 version: "3.5"
-name: docker-hive-mini
+# name: docker-hive-mini
 
 services:
   portainer:
