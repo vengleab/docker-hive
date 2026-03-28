@@ -5,7 +5,7 @@
 # and access to the YARN configuration.
 
 SCRIPT_PATH="/home/jovyan/work/spark_yarn_test.py"
-spark-submit \
+/usr/local/spark/bin/spark-submit \
     --master yarn \
     --deploy-mode client \
     --name "Spark YARN Test Task" \
