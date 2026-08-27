@@ -135,16 +135,48 @@ The minimum bar for "the cluster works" is fixed and non-negotiable:
 
 ---
 
-## P9 — The predecessor is prior art, never a dependency
+## P9 — This package is self-contained; the predecessor is prior art, never a dependency
 
-`docker-hive` is read for its port map, its tuning values, its metastore schema bundle, and
-its test fixtures. Those are **copied in**, with attribution, and thereafter maintained here.
+**This specification package must be executable after being copied into a new, empty
+repository — with no other project present, and no reference cluster running.** That is its
+normal delivery mode, not an edge case.
 
-No path in this project may reference `../docker-hive`. No file in `docker-hive` may be
-modified by work on this project.
+Concretely:
 
-**Test:** `grep -rn "\.\./\.\./\|docker-hive/" --include=* .` finds only prose references in
-markdown.
+1. **Every input a task needs is inside this package.** Configuration to migrate, test
+   fixtures, port maps, expected outputs — all live under `reference/predecessor/`, copied in
+   with attribution and maintained here thereafter.
+2. **No task may require the predecessor repository**, whether by path or by instruction. A
+   task that says "copy this file from `docker-hive`" is as broken as one containing
+   `../docker-hive/` — it just fails later.
+3. **No task may require a running predecessor cluster.** Baselines are *computed* from
+   committed inputs, not *captured* from a reference deployment. A baseline that cannot be
+   reproduced from this package alone is not a baseline.
+4. **No file outside this package may be modified** by work on this project.
+
+Prose may freely discuss the predecessor as prior art, cite its files, and quote its bugs —
+that is how the design records its reasoning. What is forbidden is a *dependency*.
+
+**Test:** `./check-standalone.sh`, which ships in this package and enforces all five
+conditions:
+
+1. every relative path **resolves** inside the package root — a `../../` that stays in the
+   tree is fine; what matters is where it lands, not how many segments it has;
+2. no executable file (`*.py`, `*.sh`, `*.yaml`, `Makefile`, `Dockerfile`) references the
+   predecessor tree;
+3. no task instructs the reader to use a live predecessor cluster;
+4. every embedded input a spec references actually exists;
+5. every internal markdown cross-link resolves.
+
+**And run it after copying**, which is the only way to catch instruction-level dependencies:
+
+```bash
+cp -r . /tmp/standalone && cd /tmp/standalone && ./check-standalone.sh
+```
+
+A task saying *"copy this file from `docker-hive`"* contains no bad path and passes a naive
+grep — it simply fails later, for whoever actually tries to run it. Condition 3 and the
+copy-then-check discipline exist for exactly that class of defect.
 
 ---
 

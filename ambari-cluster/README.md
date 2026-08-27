@@ -2,9 +2,33 @@
 
 > **Status: specifications only. No implementation exists yet.**
 >
-> This directory is the *seed of a new standalone repository*. It currently lives inside
-> `docker-hive` for convenience, but it has no dependency on it. Lift it out with
-> `cp -r ambari-cluster/ ../ambari-bigtop-cluster/` and it remains complete and coherent.
+> ### This package is self-contained by design
+>
+> It is the *seed of a new standalone repository*. Copy it anywhere — into an empty repo, onto
+> another machine — and it remains **fully executable**:
+>
+> ```bash
+> cp -r ambari-cluster/ ~/ambari-bigtop-cluster/    # nothing else needed
+> ```
+>
+> - **No file outside this directory is required.** Every input the tasks need — the legacy
+>   configuration to migrate, the test fixtures, the port map, the expected outputs — is
+>   embedded under `reference/predecessor/`.
+> - **No reference cluster is required.** Parity baselines are computed from committed inputs,
+>   not captured from a running deployment.
+> - The predecessor project is discussed throughout as *prior art*, and its files are cited by
+>   name so the reasoning is traceable. That is documentation, not a dependency.
+>
+> This is constitution **P9**, and it is enforced by a script that ships here:
+>
+> ```bash
+> ./check-standalone.sh                                  # verify in place
+> cp -r . /tmp/x && cd /tmp/x && ./check-standalone.sh   # verify after moving
+> ```
+>
+> The second form is the one that matters. A task saying *"copy this file from the old
+> project"* contains no bad path and passes any grep — it just fails later, for whoever tries
+> to run it.
 
 ## What this project will be
 
@@ -93,16 +117,28 @@ Then the two dependent features:
   amend `research.md` — record the finding, the new decision, and the date — then proceed.
 - **Traceability is mandatory.** Every task cites the `FR-###` it satisfies. Every commit
   cites the `T###` it completes.
-- **Nothing in `docker-hive` may be modified.** It is prior art and a source of test
-  fixtures, never a dependency.
+- **Never add a dependency on the predecessor.** Not a path, and not an instruction like
+  "copy this from `docker-hive`" or "run this against the old cluster" — the second fails just
+  as hard, only later. If a task needs something not already in `reference/predecessor/`, copy
+  it in and update that directory's index. Constitution P9.
 
 ## Layout
 
 ```
 .
 ├── README.md                      ← you are here
+├── check-standalone.sh            enforces P9 — run it after moving the package
 ├── .gitignore
 ├── .specify/memory/constitution.md
+├── reference/
+│   └── predecessor/               everything the tasks need from the prior project,
+│       ├── README.md              embedded so this package stands alone (P9)
+│       ├── hadoop-hive.env            legacy config to migrate      → 001 T014
+│       ├── entrypoint-configure.sh    the sed mechanism replaced    → 001 T014
+│       ├── spark_yarn_pi.py           Spark-on-YARN fixture         → 003 T-P07
+│       ├── submit_yarn.sh             its submit wrapper            → 003 T-P07
+│       ├── notebook-workload.md       the workload to rebuild       → 003 T-P02
+│       └── topology-and-ports.md      port map, versions, topology  → 001 FR-023
 └── specs/
     ├── 001-ambari-cluster-bootstrap/
     │   ├── spec.md            what & why — FR-### and acceptance criteria

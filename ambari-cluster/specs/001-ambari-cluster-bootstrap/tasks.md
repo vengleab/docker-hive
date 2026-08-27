@@ -185,18 +185,26 @@ source file and its content hash.
 
 ### T014 — [P] Legacy config migration tool
 **FR:** FR-017, FR-018, FR-019 · **Deps:** T012
+**Input, already in this package:** `reference/predecessor/hadoop-hive.env` (the legacy config)
+and `reference/predecessor/entrypoint-configure.sh` (the mechanism being replaced, with the
+encoding and the prefix→file mapping documented in its header).
 **Do:** `tools/env2blueprint.py` — read a `hadoop-hive.env`-style file, decode `___`→`-`,
 `__`→`_`, `_`→`.` **in that order**, map each prefix (`CORE_CONF`, `HDFS_CONF`, `YARN_CONF`,
 `MAPRED_CONF`, `HIVE_SITE_CONF`) to its config type, emit blueprint `configurations[]`.
+**Order matters, and the predecessor got it wrong twice.** Of its three copies of this logic,
+only `hadoop-cluster/base/entrypoint.sh` is correct; the Hive and notebook copies collapse
+`__`→`_` and then immediately turn that into `.`, corrupting any property with a literal
+underscore. Implement the correct ordering and **include a test with a `__` property to prove
+it**. Details in the reference file's header.
 Write `docs/config-migration.md`: every predecessor setting, carried over or dropped, with the
 reason. The dropped list must include `dfs.permissions.enabled=false`,
 `hadoop.http.staticuser.user=root`, `POSTGRES_HOST_AUTH_METHOD=trust`,
 `dfs.namenode.datanode.registration.ip-hostname-check=false`, and the Hue proxyuser settings
 (FR-019).
-**Done:** run against `docker-hive`'s `hadoop-hive.env` (copied into `tests/fixtures/`, not
-referenced in place — P9); output validates as blueprint `configurations[]`;
-`yarn_log___aggregation___enable` correctly becomes `yarn.log-aggregation-enable`; the
-migration doc accounts for **every** line of the source file.
+**Done:** run against `reference/predecessor/hadoop-hive.env`; output validates as blueprint
+`configurations[]`; `yarn_log___aggregation___enable` correctly becomes
+`yarn.log-aggregation-enable`; a property containing `__` round-trips correctly; the migration
+doc accounts for **every** line of the source file.
 
 ---
 

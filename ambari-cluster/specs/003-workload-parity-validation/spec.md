@@ -30,22 +30,37 @@ the version delta; the deliberate tuning values; native library coverage.
 **Out:** performance benchmarking (feature 002 covers native-vs-emulated), migrating user data,
 Hue (dropped, D-008), and anything requiring Spark features that do not exist in 3.3.4.
 
-## 3. Fixtures — ported, not referenced
+## 3. Fixtures — embedded, not referenced
 
-Copied into `tests/fixtures/` with attribution. **Nothing may reference `../docker-hive`**
-(constitution P9).
+Every input this feature needs is already inside this package, under
+`reference/predecessor/`. **No task here requires the predecessor repository, and none
+requires a running predecessor cluster** (constitution P9).
 
-| Source (`docker-hive`) | Becomes | Tests |
+| Source — in this package | Becomes | Tests |
 |---|---|---|
-| `notebooks/work/map-reduce-example.ipynb` | `tests/fixtures/mapreduce_wordcount.py` | RDD/wordcount over HDFS |
-| `notebooks/work/spark_yarn_test.py` | `tests/fixtures/spark_yarn_pi.py` | Spark on YARN with `enableHiveSupport()` |
-| `notebooks/work/submit_yarn_test.sh` | `tests/fixtures/submit_yarn.sh` | `spark-submit --master yarn --deploy-mode client` |
-| `hadoop-cluster/submit/WordCount.jar` | `tests/fixtures/wordcount/` | Rebuilt from source; a committed jar is not reproducible (P3) |
-| `hadoop-hive.env` | `tests/fixtures/legacy-hadoop-hive.env` | Input to the config-migration assertions |
+| `reference/predecessor/spark_yarn_pi.py` | `tests/fixtures/spark_yarn_pi.py` | Spark on YARN with `enableHiveSupport()` |
+| `reference/predecessor/submit_yarn.sh` | `tests/fixtures/submit_yarn.sh` | `spark-submit --master yarn --deploy-mode client` |
+| `reference/predecessor/notebook-workload.md` | `tests/fixtures/mapreduce_wordcount.py` | Written from that description — RDD word count over HDFS |
+| *(written fresh)* | `tests/fixtures/wordcount/` + jar | Built from committed source; a committed binary is not reproducible (P3) |
+| `reference/predecessor/hadoop-hive.env` | `tests/fixtures/legacy-hadoop-hive.env` | Input to the config-migration assertions |
+| *(written fresh)* | `tests/fixtures/films.csv` + `expected/wordcount.txt` | The deterministic parity input and its computed expectation |
 
-The notebook is converted to a script so it can run headlessly in CI. The *notebook* remains
-valuable as a teaching artefact and is carried into the optional `edge` host separately — this
-is about making it testable.
+### Why the baseline is computed rather than captured
+
+The predecessor's notebook reads `hdfs://namenode:9000/data/films`, and **that dataset is not
+in its repository** — its `.gitignore` is the single line `data`. Anyone cloning it hits the
+same wall.
+
+An earlier draft of this feature required output "byte-identical to the same job on
+`docker-hive`", which nobody could actually verify. This feature instead **generates its own
+fixed input and commits the expected output**. The transformation is pure and the input is
+committed, so the result is fully determined — determinism comes from the fixture, not from a
+reference cluster.
+
+The notebook itself is not copied: it is an interactive teaching artefact, and what this
+feature needs is the workload. `reference/predecessor/notebook-workload.md` describes its
+operations precisely enough to rebuild headlessly, and notes what a ported notebook would need
+if one is carried onto the optional `edge` host.
 
 ## 4. Functional requirements
 

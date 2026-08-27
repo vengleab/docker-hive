@@ -7,23 +7,37 @@ architectures once feature 002 lands.
 
 ## Phase P0 — Establish the baseline
 
-### T-P01 — Capture `docker-hive` reference output
-**FR:** FR-P02 · **Deps:** none
-**Do:** On the predecessor cluster, run the WordCount job and the Spark Pi job against a fixed
-input. Record exact outputs, and the versions in play (`hadoop version`, `hive --version`,
-`spark-submit --version`).
-**Done:** reference outputs stored in `tests/fixtures/expected/` with a README naming the
-source cluster and its commit (`docker-hive` @ `b2da7c2`).
-**Note:** read-only against `docker-hive`. Nothing in it is modified (constitution P9).
+> **No predecessor cluster is required, and none is assumed to exist.** This package is built
+> to be lifted into a new, empty project (constitution P9). Everything these tasks need is in
+> `reference/predecessor/`.
 
-### T-P02 — [P] Port the fixtures
+### T-P01 — Define the deterministic parity input and expected output
+**FR:** FR-P02 · **Deps:** none
+**Do:** The baseline is **computed, not captured.** Write `tests/fixtures/films.csv` — a small,
+fixed, committed CSV — and `tests/fixtures/expected/wordcount.txt`, its word-count result
+sorted by key. Because the input is committed and the transformation is pure, the expected
+output is fully determined: derive it by hand or with a local script, and commit both.
+**Why not capture it from a running predecessor:** its notebook reads
+`hdfs://namenode:9000/data/films`, and that dataset is **not in its repository** — the
+`.gitignore` there is the single line `data`. A baseline nobody can reproduce is not a
+baseline. See `reference/predecessor/notebook-workload.md`.
+**Done:** both files committed; the expected output is checkable by inspection; this task needs
+no running cluster of any kind.
+
+### T-P02 — [P] Build the fixtures
 **FR:** FR-P02, FR-P05 · **Deps:** none
-**Do:** Copy the five fixtures in `spec.md` § 3 into `tests/fixtures/`, with attribution
-headers. Convert the notebook to a headless script. **Rebuild `WordCount.jar` from source** —
-a committed binary is not reproducible (constitution P3) — and commit the source with its
-build file.
-**Done:** every fixture runs standalone; `grep -rn "\.\./\.\./\|docker-hive/" tests/` finds
-nothing outside comments (P9); the jar builds from committed source.
+**Do:** Copy from `reference/predecessor/` into `tests/fixtures/`, keeping attribution headers:
+- `spark_yarn_pi.py`, `submit_yarn.sh` — verbatim, then retarget endpoints and `SCRIPT_PATH`
+  (it points at the predecessor's `/home/jovyan/work/`).
+- `mapreduce_wordcount.py` — **write** this from the specification in
+  `reference/predecessor/notebook-workload.md` § "The replacement fixture". Headless, reads the
+  T-P01 input from HDFS. **Sort before comparing** — `reduceByKey` ordering is not guaranteed
+  and an unsorted comparison is a flaky test waiting to happen.
+- `WordCount.jar` — **write the source and build it.** The predecessor commits a prebuilt jar;
+  a committed binary is not reproducible (constitution P3).
+**Done:** every fixture runs against a cluster built solely from this package;
+`grep -rn "docker-hive" tests/` finds nothing outside attribution comments (P9); the jar builds
+from committed source.
 
 ---
 
@@ -38,11 +52,11 @@ correctly when a DataNode is stopped.
 
 ### T-P04 — MapReduce parity
 **FR:** FR-P02 · **Deps:** T-P01, T-P03
-**Do:** Run the ported WordCount on YARN. Compare output **byte for byte** against the T-P01
-reference.
-**Done:** job reaches `SUCCEEDED`; output is byte-identical to the reference. Any difference is
-investigated as a provisioning defect — Hadoop 3.3.6 is the same version on both sides, so
-there is no version explanation available.
+**Do:** Load `tests/fixtures/films.csv` into HDFS and run the WordCount fixture on YARN.
+Compare output **byte for byte** against `tests/fixtures/expected/wordcount.txt`, sorted.
+**Done:** job reaches `SUCCEEDED`; output matches the committed expectation exactly. Any
+difference is a provisioning defect to investigate — the transformation is pure and the input
+is fixed, so there is no legitimate source of variation.
 
 ### T-P05 — [P] Hive parity, including ACID
 **FR:** FR-P03 · **Deps:** feature 001 T019
