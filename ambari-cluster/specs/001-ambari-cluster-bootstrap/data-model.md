@@ -34,12 +34,13 @@ The single pinned source for every version in the project (constitution P3).
 | Field | Type | Notes |
 |---|---|---|
 | `ambari.version` | string | `3.0.0` |
-| `ambari.repo_url` | URL | Upstream source for the mirror *(SPIKE-005)* |
-| `stack.name` | string | `BIGTOP` — **exact value unconfirmed**, see SPIKE-004 |
+| `ambari.repo_url` | URL | `https://apache-ambari.com/dist/ambari/3.0.0/rocky8/` — confirmed |
+| `stack.name` | string | `BIGTOP` — **exact value still unconfirmed**, see SPIKE-004 |
 | `stack.version` | string | `3.3.0` |
-| `stack.repo_url` | URL | *(SPIKE-005)* |
-| `base_image` | string | Rocky Linux 8, digest-pinned |
-| `jdk.version` | string | Stack-required JDK |
+| `stack.repo_url` | URL | `https://apache-ambari.com/dist/bigtop/3.3.0/rocky8/` — confirmed |
+| `base_image` | string | **`bigtop/puppet:trunk-rockylinux-8`**, digest-pinned |
+| `jdk.stack` | string | **Java 8** — runs the managed stack, passed as `-j` |
+| `jdk.ambari` | string | **Java 17** — runs the Ambari server, passed as `--ambari-java-home` (D-010) |
 | `postgres.version` | string | Digest-pinned |
 | `components{}` | map | Informational: Hadoop 3.3.6, Hive 3.1.3, Spark 3.3.4, … |
 
@@ -192,7 +193,7 @@ actionable message naming the offending field.
 | V4 | Service dependencies are satisfied — HBASE ⇒ ZOOKEEPER, HIVE ⇒ HDFS + YARN + a metastore DB, YARN ⇒ HDFS |
 | V5 | At least one DATANODE and one NODEMANAGER exist when HDFS/YARN are enabled |
 | V6 | `dfs.replication` ≤ DataNode count |
-| V7 | Host group names are unique; expanded FQDNs are unique |
+| V7 | Host group names are unique; expanded FQDNs are unique; **and every hostname, FQDN label, network name, and the Compose project name matches `[a-z0-9]([a-z0-9-]*[a-z0-9])?` — no underscores** (D-011, F11). Compose derives network names from the project name, which is how the predecessor got its `java.net.URISyntaxException` |
 | V8 | Requested memory across all hosts does not exceed the profile's declared budget |
 | V9 | No `config_overrides[]` property name contains `___` or `__` — that is predecessor encoding leaking in |
 | V10 | Host-port assignments do not collide with each other or with `docker-hive`'s documented map (F8) |

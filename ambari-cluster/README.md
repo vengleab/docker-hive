@@ -54,6 +54,10 @@ than an aspiration.
 
 Read them in this order:
 
+0. **`specs/001-ambari-cluster-bootstrap/upstream-reference.md`** — the official Apache Ambari
+   Docker + installation procedure, transcribed and verified 2026-08-27, with an appraisal of
+   what this project adopts from it and what it deliberately rejects. This project **automates
+   upstream's manual runbook**; read it to know what the runbook actually is.
 1. **`.specify/memory/constitution.md`** — the non-negotiable principles. Every task must
    obey these. Read it first and do not violate it without an explicit, recorded amendment.
 2. **`specs/001-ambari-cluster-bootstrap/spec.md`** — *what* is being built and *why*, as
@@ -70,9 +74,11 @@ Read them in this order:
 
 Then the two dependent features:
 
-- **`specs/002-arm64-stack-enablement/`** — making `linux/arm64` a first-class target. This
-  is *not* optional; it is a hard requirement. It is separated because its fallback path
-  (building Bigtop RPMs from source) is a substantial workstream of its own.
+- **`specs/002-arm64-stack-enablement/`** — making `linux/arm64` a first-class target.
+  ⚠ **Read this before planning.** The official Ambari download page states that *"all
+  packages are built for x86_64 architecture"*, so native ARM64 requires **building the Bigtop
+  3.3.0 stack from source** — a 3–6 week workstream. Task **T-A00** puts that cost to the
+  project owner as an explicit decision before any of it starts.
 - **`specs/003-workload-parity-validation/`** — proving the new cluster actually runs the
   predecessor's workloads.
 
@@ -102,6 +108,7 @@ Then the two dependent features:
     │   ├── plan.md            how — architecture, phases, file layout
     │   ├── research.md        decisions (D-###), rejected alternatives, spikes (SPIKE-###)
     │   ├── data-model.md      the entities and their relationships
+    │   ├── upstream-reference.md  the official Ambari procedure, verified + appraised
     │   ├── quickstart.md      the end-to-end walkthrough that must work when done
     │   ├── contracts/
     │   │   ├── cluster-topology.yaml   the declarative input contract
@@ -119,6 +126,9 @@ Then the two dependent features:
 ```
 
 ## Provenance
+
+Upstream procedure verified 2026-08-27 against the Apache Ambari website's own source
+(`apache/ambari-website`, branch `main`) — see `upstream-reference.md`.
 
 Specification drafted against `docker-hive` @ `b2da7c2`. The predecessor is credited as prior
 art for its port allocation map, its readiness-gating pattern, its Hive metastore schema

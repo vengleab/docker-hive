@@ -1,20 +1,44 @@
 # Tasks — Feature 002 (ARM64)
 
-**Gate:** do not start T-A02 or later until **T-A01** has reported and the path (A, B, or C) is
-recorded in `research.md`. Constitution P10.
+> **Path C is confirmed** (2026-08-27): upstream publishes x86_64 packages only. Phase A2 —
+> building the stack from source, 3–6 weeks — is therefore **in scope, not contingent**.
+>
+> **T-A00 is a hard gate.** That much work is the project owner's call to make, explicitly.
+
+**Gate:** do not start T-A02 or later until **T-A00** and **T-A01** have reported.
+Constitution P10.
 
 ---
 
-## Phase A0 — Determine the path (blocking)
+## Phase A0 — Confirm scope and size the work (blocking)
 
-### T-A01 — Package availability survey · **resolves SPIKE-A01**
+### T-A00 — Scope decision · **BLOCKS EVERYTHING**
+**FR:** — · **Deps:** none
+**Do:** Put the confirmed Path C finding and its 3–6 week estimate to the project owner. Three
+legitimate outcomes:
+1. **Proceed** — Path C is funded; feature 002 runs in full.
+2. **Defer** — record a time-boxed P5 exception in `research.md` (date, reason, owner, review
+   date, interim guidance for Apple Silicon users), ship amd64, revisit later.
+3. **Drop** — ARM64 support is abandoned; amend constitution P5 with a version bump, and state
+   the regression against `docker-hive` plainly in the README.
+**Done:** the decision, its owner, and its date are recorded in `research.md`. Do not begin
+Phase A2 without outcome 1.
+**Note:** outcome 2 or 3 is not a failure. It is a legitimate trade-off, and the honest thing
+is to record it rather than let ARM64 quietly rot as a perpetually-open task.
+
+### T-A01 — Scope the build · **SPIKE-A01 already resolved**
 **FR:** — · **Deps:** feature 001 T003
-**Do:** Execute the method in `research.md` § SPIKE-A01. Fill in the component/architecture
-table. Attempt an actual `yum install` of one core package from a mirrored aarch64 repository
-on an ARM64 machine — a directory listing is evidence, an install is proof.
-**Done:** the table is complete; the path (A / B / C) is declared in `research.md` with the
-date; if the path is **C**, the effort estimate is confirmed with the project owner **before**
-any further work starts.
+**Do:** SPIKE-A01 is answered — no aarch64 packages. This task now sizes the work. Execute the
+method in `research.md` § SPIKE-A01 and fill in the component/architecture table, checking the
+two highest-leverage questions **first**:
+1. Does an **aarch64 `bigtop/puppet:trunk-rockylinux-8`** exist? If not, the host image must be
+   built before any package work.
+2. Are **`ambari-server` / `ambari-agent`** genuinely architecture-specific, or only tagged
+   `x86_64` while containing just Java and Python? If the latter, the management layer may be
+   cheaply rebuildable and only the *stack* needs a real build — the difference between three
+   weeks and six.
+**Done:** the table is complete; the build inventory (what must be built vs. what can be
+repackaged) is recorded; the estimate given to T-A00 is refined with real numbers.
 
 ---
 
@@ -47,16 +71,18 @@ is the machine-checkable difference between "works" and "works natively".
 
 ---
 
-## Phase A2 — Build from source (paths B and C only)
+## Phase A2 — Build from source · **REQUIRED (Path C confirmed)**
 
-*Skip this entire phase on Path A.*
+*Gated on T-A00 outcome 1. This is the 3–6 week body of the feature.*
 
 ### T-A05 — Bigtop toolchain spike · **resolves SPIKE-A02**
-**FR:** FR-A09 · **Deps:** T-A01
+**FR:** FR-A09 · **Deps:** T-A00 (outcome 1), T-A01
 **Do:** Clone Apache Bigtop at the 3.3.0 tag on an ARM64 machine. Read that release's own
 build documentation and `build.gradle` for the real task names and container image tags —
 **do not guess them.** Run the toolchain step. Build one small component end to end
 (`bigtop-utils` or `zookeeper`).
+If T-A01 found no aarch64 `bigtop/puppet:trunk-rockylinux-8`, building that image is part of
+this task and comes first.
 **Done:** one aarch64 RPM is produced and installs on Rocky 8 ARM64. `research.md` records the
 exact commands, whether the build runs natively or needs an amd64 host, and the wall-clock
 time. SPIKE-A02 resolved.

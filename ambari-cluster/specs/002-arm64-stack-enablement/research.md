@@ -1,9 +1,24 @@
 # Research — Feature 002 (ARM64)
 
-> **Everything here is provisional.** The drafting environment had restricted network egress;
-> Bigtop's distribution mirrors could **not** be enumerated directly. Every statement about
-> what is or is not published is a hypothesis to be tested by feature 001's **T003**.
-> Constitution P10 applies.
+> # ⚠ SPIKE-A01 IS RESOLVED — and the answer is **Path C**
+>
+> **2026-08-27.** The official Apache Ambari download page states, verbatim:
+>
+> > **“All packages are built for x86_64 architecture.”**
+>
+> There are **no aarch64 packages** for Ambari 3.0.0 or the Bigtop 3.3.0 stack at the
+> published distribution point. The page lists Rocky 8 and Rocky 9 builds only, and this is
+> the single sentence covering architecture. Source transcribed in
+> `../001-ambari-cluster-bootstrap/upstream-reference.md` § 5.
+>
+> **Consequence:** native ARM64 requires **building the entire Bigtop 3.3.0 stack from
+> source**. That is Path C below — the most expensive branch, estimated at 3–6 weeks.
+>
+> **This is a decision point for the project owner, not a task to absorb silently.** Feature
+> 002's `spec.md` § 8 requires the scope be confirmed before Path C work begins. Constitution
+> P5 makes ARM64 a release gate; P5 also provides the time-boxed exception mechanism if the
+> owner decides the cost is not worth paying. Either answer is legitimate. Proceeding without
+> an answer is not.
 
 ---
 
@@ -18,27 +33,50 @@
 - Bigtop 3.3.0 added Rocky Linux 8 as a supported OS.
 - Ambari 3.0.0 targets the Bigtop 3.3.0 stack.
 
-**Not confirmed — this is the gap.**
-- Whether the published Bigtop 3.3.0 **RPM repositories** include an `aarch64` tree.
-- Whether that tree, if it exists, covers every component this project installs, or only a
-  subset.
-- Whether `ambari-server` and `ambari-agent` packages are architecture-independent or
-  architecture-specific. Both are largely Java and Python, which *suggests* they are portable,
-  but packaging metadata may still declare an architecture.
-- Whether native libraries (Hadoop native, Snappy, LZO) are built for aarch64 in those
-  packages. This matters concretely: `docker-hive` sets
+**Now confirmed (2026-08-27).**
+- The published Ambari 3.0.0 and Bigtop 3.3.0 repositories are **x86_64 only**. No aarch64
+  tree exists at `apache-ambari.com/dist/`.
+- Upstream's own Docker base image, `bigtop/puppet:trunk-rockylinux-8`, would additionally
+  need an aarch64 variant. Whether one is published is **still unverified** and is now the
+  first thing T-A01 should check — if it is not, even the *host image* has to be built before
+  any package work begins.
+
+**Still unverified, and now more important than before.**
+- Whether `ambari-server` / `ambari-agent` RPMs are genuinely architecture-specific or merely
+  tagged `x86_64` while containing only Java and Python. If they are effectively portable,
+  they may be rebuildable or repackaged cheaply, and only the *stack* needs a real build. This
+  is the single highest-leverage question in this feature — **check it first**, because it can
+  cut the work substantially.
+- Whether native libraries (Hadoop native, Snappy, LZO) build cleanly for aarch64. This
+  matters concretely: `docker-hive` sets
   `io.compression.codecs=org.apache.hadoop.io.compress.SnappyCodec` and
   `mapreduce.map.output.compress=true`, so Snappy is on the hot path, not a corner case.
 
-**The distinction that matters.** "Bigtop supports ARM64" and "the Bigtop 3.3.0 release
-publishes aarch64 RPMs for Rocky 8" are different claims. The first is well supported. The
-second is what this feature depends on, and it is the one that has not been verified.
+**The distinction that mattered.** "Bigtop supports ARM64" and "the Bigtop 3.3.0 release
+publishes aarch64 RPMs for Rocky 8" are different claims. The first is well supported — Bigtop
+has carried AArch64 work for several release cycles. The second is what this feature depended
+on, and it is now confirmed **false** for the distribution point Ambari 3.0.0 points at.
+
+That gap is the whole of feature 002: the *source* supports ARM; the *published binaries* do
+not.
 
 ---
 
-## SPIKE-A01 — aarch64 package availability
+## SPIKE-A01 — aarch64 package availability · **RESOLVED 2026-08-27 → Path C**
 
-**Resolved by:** feature 001, T003. **Blocks:** everything in this feature.
+**Answer:** no aarch64 packages are published. See the banner at the top of this file.
+
+T-A01 is therefore no longer a discovery task but a **confirmation and scoping** task. Its
+remaining job is to establish precisely how much must be built, which is what decides whether
+Path C is three weeks or six. Run the method below with that framing, and check the two
+highest-leverage questions first:
+
+1. **Is there an aarch64 `bigtop/puppet:trunk-rockylinux-8`?** If not, the host image itself
+   must be built before any package work starts.
+2. **Are `ambari-server` / `ambari-agent` genuinely architecture-specific?** They are largely
+   Java and Python. If they only carry an `x86_64` tag without real native content, they may
+   be rebuildable cheaply — leaving only the stack to build, which is a materially smaller
+   job.
 
 ### Method
 
@@ -71,7 +109,9 @@ Then set the path (A, B, or C) and amend this document with the date and the fin
 
 ---
 
-## Path A — packages exist
+## Path A — packages exist · **RULED OUT 2026-08-27**
+
+Retained for the record. This was the hoped-for case; the download page rules it out.
 
 The easy case. Work is ordinary multi-arch plumbing.
 
@@ -88,9 +128,10 @@ loud.
 
 ---
 
-## Path C — no packages, build from source
+## Path C — no packages, build from source · **THIS IS THE CONFIRMED PATH**
 
-The expensive case. Documented here so its cost is visible before it is chosen.
+The expensive case, and the one that applies. Documented here so its cost is visible before it
+is chosen — and it must be *chosen*, explicitly, by the project owner (`spec.md` § 8).
 
 ### What Bigtop's build actually is
 
@@ -150,7 +191,11 @@ this path has somewhere to publish to — that was one of the three reasons for 
 
 ---
 
-## Path B — partial
+## Path B — partial · **RULED OUT for the stack**
+
+Retained for the record, and still partially relevant: if T-A01 finds that `ambari-server` and
+`ambari-agent` are effectively architecture-neutral, the *management layer* behaves like Path A
+while the *stack* is Path C. That is the best realistic outcome.
 
 Mechanically Path A for what exists plus Path C for the gap. The main hazard is *mixing*: a
 repository containing both mirrored and locally built packages must have consistent metadata
@@ -180,3 +225,6 @@ today; a successor that quietly does not is a regression its users will notice.
 | Date | Spike | Finding |
 |---|---|---|
 | 2026-08-27 | — | Initial draft. SPIKE-A01, A02, A03 all open. Path undetermined. |
+| 2026-08-27 | **SPIKE-A01** | **RESOLVED → Path C.** The official Ambari download page states "All packages are built for x86_64 architecture." No aarch64 packages exist. Native ARM64 requires building the Bigtop 3.3.0 stack from source. Scope confirmation with the project owner is required before Path C work begins. |
+| 2026-08-27 | SPIKE-A02 | Still open, and now on the critical path rather than contingent. Additionally: whether an aarch64 `bigtop/puppet:trunk-rockylinux-8` base image exists is now part of this spike. |
+| 2026-08-27 | SPIKE-A03 | Still open. |

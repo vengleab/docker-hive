@@ -5,12 +5,19 @@ Decisions (`D-###`), rejected alternatives, spikes (`SPIKE-###`), and known fail
 > **Read this before writing any code.** Several spikes below can invalidate parts of the
 > design. Constitution P10 requires that they be settled by measurement, not assumption.
 >
-> **Verification conditions at drafting time:** this specification was written in an
-> environment with restricted outbound network access. Upstream repositories
-> (`ambari.apache.org`, the Bigtop distribution mirrors) could **not** be fetched directly.
-> Version facts below come from Apache release notes and project documentation retrieved via
-> search; **directory-level package availability was not verified.** Every claim that depends
-> on what is actually published is marked as a spike.
+> **Update 2026-08-27 — upstream documentation obtained.** The official Ambari quick-start
+> pages (Docker environment setup, installation guide, download page) have now been read and
+> are transcribed in **`upstream-reference.md`**. `ambari.apache.org` is unreachable from the
+> drafting environment, so they were retrieved from the site's own source repository
+> (`apache/ambari-website`, branch `main`).
+>
+> This **resolves SPIKE-003 and SPIKE-005 outright**, substantially resolves **SPIKE-001**,
+> and confirms the base-image, JDK, and install-command details. It leaves **SPIKE-002,
+> SPIKE-004, SPIKE-006, SPIKE-007** open — those need measurement or a live server.
+>
+> It also produced the single most consequential finding in this project so far: the official
+> download page states that **all packages are built for x86_64 only**, which forces feature
+> 002 onto its most expensive path. See `../002-arm64-stack-enablement/research.md`.
 
 ---
 
@@ -57,7 +64,14 @@ newer version is genuinely needed. This is explicitly **not** in feature 001's s
 
 ### D-003 — Containers running systemd, not one-process containers
 
-Every cluster host is a Rocky Linux 8 container with `/sbin/init` as PID 1.
+Every cluster host is a container running `/sbin/init` as PID 1, built from
+**`bigtop/puppet:trunk-rockylinux-8`** with **`privileged: true`**.
+
+> **Confirmed against upstream 2026-08-27.** This is exactly what the official Ambari Docker
+> environment guide does — same base image, same `command: /sbin/init`, same
+> `privileged: true`, plus `mem_limit: 8g` and `mem_swappiness: 0` per container. See
+> `upstream-reference.md` § 1. The base image is *not* a bare Rocky 8: it is the Apache Bigtop
+> Puppet image, with Java, Puppet, and Hadoop dependencies preinstalled.
 
 *Rationale:* Ambari manages component lifecycle through `systemctl`. It was built for real
 hosts, and its service start/stop/restart — the thing scenario S3 exists to teach — depends
@@ -91,8 +105,19 @@ key-distribution problem. Self-registration is the smaller, more reliable mechan
 SSH is still installed (FR-009) because debugging a seven-host cluster without it is
 miserable. It is a debugging affordance, not a dependency.
 
-⚠ **Depends on SPIKE-001** — the exact `ambari-agent.ini` fields and the registration
-handshake for Ambari 3.0 have not been verified.
+> **Confirmed against upstream 2026-08-27.** The official installation guide registers agents
+> with exactly this mechanism:
+> ```bash
+> sed -i "s/hostname=.*/hostname=your_ambari_server_hostname/" /etc/ambari-agent/conf/ambari-agent.ini
+> ambari-agent start
+> ```
+> No SSH bootstrap, no wizard host discovery. D-004 is upstream's own path, not a departure
+> from it.
+>
+> The Docker environment guide *does* set up SSH between containers and says it "is required
+> for Ambari to function properly" — but its own installation guide then registers agents
+> without using it. This project keeps SSH for debugging (FR-009) and does not depend on it.
+> See `upstream-reference.md` §§ 3, 8.
 
 ### D-005 — Local package mirror container
 
@@ -136,6 +161,48 @@ Jupyter is retained as an **optional** `edge1` host, because `docker-hive`'s not
 genuinely good teaching asset and feature 003 reuses it as a parity fixture. It runs as a
 client outside the Ambari-managed service set.
 
+### D-010 — Two JDKs on every host: Java 17 for Ambari, Java 8 for the stack
+
+*(Added 2026-08-27 from upstream.)* Upstream installs both `java-17-openjdk-devel` and
+`java-1.8.0-openjdk-devel` on every host, then passes them separately at setup:
+
+```bash
+ambari-server setup -s \
+  -j /usr/lib/jvm/java-1.8.0-openjdk \              # the managed stack runs on 8
+  --ambari-java-home /usr/lib/jvm/java-17-openjdk   # Ambari itself runs on 17
+```
+
+Ambari 3.0.0 added Java 17 support for the server; the Bigtop 3.3.0 stack still runs on Java
+8. Both must be present, and the two `-j` / `--ambari-java-home` flags must not be conflated —
+getting them backwards is a plausible and confusing failure.
+
+Worth noting against the predecessor: `docker-hive` builds on `openjdk:8-jre` — a **JRE**, not
+a JDK. Upstream requires the `-devel` packages. The image build must install JDKs.
+
+### D-011 — Hostnames use hyphens, never underscores
+
+*(Added 2026-08-27.)* Upstream names its containers `bigtop_hostname0`. This project uses
+`master1`, `worker1`, `worker2` — hyphens only where a separator is needed.
+
+Underscores are not legal in DNS hostnames (RFC 952 / RFC 1123) and `java.net.URI` rejects
+them. **The predecessor has already hit this exact bug**, and left the evidence in
+`docker-hive/docker-compose.yml`:
+
+```
+# solve java.net.URISyntaxException Illegal character in hostname at index 49:
+#   thrift://docker-hive-hive-metastore-1.docker-hive_default:9083
+```
+
+The offending character was the underscore in the Compose-generated network name
+`docker-hive_default`. On an upstream-named Ambari cluster the Hive metastore URI would be
+`thrift://bigtop_hostname0.bigtop.apache.org:9083` — the same exception, in the same
+component. Following upstream's naming here would reintroduce a bug this repository already
+paid to fix.
+
+Validation rule V7 is extended: expanded FQDNs must match `[a-z0-9]([a-z0-9-]*[a-z0-9])?`
+per label. The Compose **project name** must also be hyphenated, since Compose derives network
+names from it — that is precisely what bit the predecessor.
+
 ### D-009 — Generated artifacts are not committed
 
 Compose files, blueprints, and cluster templates are generated from `cluster-topology.yaml`
@@ -151,25 +218,22 @@ deterministic (FR-002) so diffs are reviewable when someone dumps them for inspe
 Each spike names what is unknown, why it matters, how to settle it, and what to do if the
 answer is bad. **Constitution P10: do not build on an unresolved spike.**
 
-### SPIKE-001 — Ambari 3.0 agent self-registration (blocks D-004, FR-008)
+### SPIKE-001 — Ambari 3.0 agent self-registration · **MOSTLY RESOLVED 2026-08-27**
 
-**Unknown.** The exact contents of `/etc/ambari-agent/conf/ambari-agent.ini` required for
-unattended registration against Ambari 3.0.0; whether registration succeeds when the agent
-starts before the server's schema is initialised; how the agent determines the hostname it
-reports (`hostname -f` vs. a `public_hostname_script` vs. `hostname_script`); and whether
-two-way SSL certificate exchange needs any pre-seeding.
+**Resolved.** Upstream's installation guide sets the `hostname=` field in
+`/etc/ambari-agent/conf/ambari-agent.ini` to the Ambari server's hostname and starts the agent
+directly — no SSH bootstrap. D-004 stands. See `upstream-reference.md` § 8.
 
-**Why it matters.** If self-registration cannot be made reliable, D-004 collapses and the
-project must fall back to SSH-based bootstrap — a materially different design touching key
-generation, distribution, and the `/api/v1/bootstrap` endpoint.
+**Still to verify at T009** (cheap, and they are the failure modes, not the mechanism):
 
-**How to settle.** Bring up one server container and one agent container by hand. Inspect the
-packaged default `ambari-agent.ini`. Observe `GET /api/v1/hosts` and
-`/var/log/ambari-agent/ambari-agent.log`. Deliberately start the agent *before* the server and
-observe whether it retries or dies.
+- Whether the agent **retries** when it starts before the server's schema is ready, or exits.
+  This is failure mode F2 and the likeliest source of flaky cold starts.
+- How the agent determines the hostname it *reports* — `hostname -f`, or a `hostname_script` /
+  `public_hostname_script` override. This determines whether blueprint host mapping matches
+  (failure mode F1).
+- Whether two-way SSL certificate exchange needs any pre-seeding on first registration.
 
-**If the answer is bad.** Fall back to SSH bootstrap; record the amendment; feature 001 grows
-a key-distribution task. Estimated cost: +1 to 2 days.
+**If a fallback is still needed.** SSH bootstrap via `/api/v1/bootstrap`; +1 to 2 days.
 
 ### SPIKE-002 — Real resource requirements (blocks FR-003, NFR-002)
 
@@ -181,29 +245,40 @@ guidance for an Ambari-managed cluster is far above what a laptop offers.
 definitions are wrong. This determines whether `mini` must collapse to a genuine
 single-all-in-one-host cluster.
 
+**Upstream's stated figure (2026-08-27).** The Docker environment guide asks for **≥ 8 GB
+free RAM for a 4-node cluster** (1 server + 3 agents), ≥ 20 GB disk. Its Compose file then
+sets `mem_limit: 8g` on *each* of the four containers — so the limits sum to 32 GB against a
+stated 8 GB requirement. Those are soft caps, not reservations, so both can be true; but the
+8 GB figure is for a cluster with **no services installed yet**, and it is optimistic once
+HDFS, YARN, Hive, and Ambari Metrics are actually running.
+
+Treat 8 GB as a floor for the `mini` profile, not a prediction for `standard`.
+
 **How to settle.** Build the profiles, run them, measure with `docker stats` under the smoke
-suite, and record the peak.
+suite, and record the peak *after* services are started — not at idle.
 
 **If the answer is bad.** Redefine `mini` as one host running everything, and document
 `standard` as requiring a workstation.
 
-### SPIKE-003 — systemd in Docker under cgroup v2 (blocks FR-006)
+### SPIKE-003 — systemd in Docker · **RESOLVED 2026-08-27**
 
-**Unknown.** The precise, portable Compose configuration for running systemd as PID 1 across
-cgroup v1 hosts, cgroup v2 hosts (Linux 6.x, modern Docker Desktop), and Docker Desktop's
-macOS VM. The v1 recipe — bind-mount `/sys/fs/cgroup` read-only, tmpfs on `/run` and
-`/run/lock`, `SYS_ADMIN`, `stop_signal: SIGRTMIN+3` — does not transfer unchanged to v2,
-where a private cgroup namespace and a writable cgroup mount are involved.
+**Resolved.** Upstream's answer is simply `privileged: true` with `command: /sbin/init` on
+`bigtop/puppet:trunk-rockylinux-8`. No cgroup bind-mounts, no `tmpfs` on `/run`, no
+`stop_signal: SIGRTMIN+3`, no cgroup-version branching. `privileged` sidesteps the cgroup v1
+vs v2 distinction entirely, which is why upstream needs no per-host variation.
 
-**Why it matters.** This is the foundation. If it is wrong, nothing above it starts, and the
-failure mode is an opaque hang rather than a clear error.
+The elaborate unprivileged recipe this spec previously worried about is not required. The
+cost is a blanket privilege grant, which this project **adopts and documents** rather than
+hides — see `upstream-reference.md` § Appraisal.
 
-**How to settle.** Build one Rocky 8 + systemd image; boot it on a cgroup v1 host, a cgroup
-v2 Linux host, and Docker Desktop on macOS; confirm `systemctl is-system-running` reaches
-`running` on each. Record the exact working Compose keys per case.
+**Remaining work at T002** — verification, not discovery:
 
-**If the answer is bad.** Fall back to `privileged: true`, documented as a known wart with
-its security implications stated.
+- Confirm `systemctl is-system-running` reaches `running`/`degraded` on a cgroup v1 host, a
+  cgroup v2 Linux host, and Docker Desktop on macOS.
+- Confirm the image's shutdown behaviour; add `stop_signal: SIGRTMIN+3` if `docker compose
+  down` is slow or unclean. Upstream omits it; that may be an oversight rather than a finding.
+- **Optional later refinement:** narrow `privileged: true` to specific capabilities. Not a
+  blocker, and not to be attempted before the privileged path works.
 
 ### SPIKE-004 — Ambari 3.0 REST payload shapes (blocks FR-013, `contracts/ambari-rest.md`)
 
@@ -216,6 +291,12 @@ the stack name and version strings (`BIGTOP` vs `BGTP`, `3.3.0`) are **not** con
 **Why it matters.** A wrong stack identifier fails at the first REST call. Everything
 downstream is blocked.
 
+**Still open after the 2026-08-27 documentation pass.** Upstream's quick-start path stops at
+agent registration and then hands the reader to the **Ambari Web install wizard**. Blueprints
+are documented on a separate page and are not covered by the pages transcribed in
+`upstream-reference.md`. So the manual runbook is now fully known, but the *headless* path —
+which is the whole point of this project (constitution P2) — is not.
+
 **How to settle.** Stand up the Ambari server alone and introspect: `GET /api/v1/stacks`,
 `GET /api/v1/stacks/<name>/versions`, and the resource's own `?fields=*` output. The running
 server is the authoritative source; use it rather than any document, this one included.
@@ -223,17 +304,45 @@ server is the authoritative source; use it rather than any document, this one in
 **If the answer is bad.** Only the contract document changes. Low blast radius, but it gates
 everything, so it goes early in `tasks.md`.
 
-### SPIKE-005 — Bigtop 3.3.0 repository layout and OS coverage (blocks FR-010, FR-011)
+### SPIKE-005 — Repository layout and OS coverage · **RESOLVED 2026-08-27**
 
-**Unknown.** The exact repository URLs and directory structure for Ambari 3.0.0 and Bigtop
-3.3.0 RPMs, which base OS builds are published (Rocky 8 is expected), whether GPG signing
-keys must be imported, and the total mirror size.
+**Resolved** from the official download page (`upstream-reference.md` § 5).
 
-**Why it matters.** Determines the mirror-population task and the disk budget. If Rocky 8
-builds are not published, D-003's base-image choice changes.
+| Artefact | URL |
+|---|---|
+| Ambari 3.0.0, Rocky 8 | `https://apache-ambari.com/dist/ambari/3.0.0/rocky8/` |
+| Ambari 3.0.0, Rocky 9 | `https://apache-ambari.com/dist/ambari/3.0.0/rocky9/` |
+| Bigtop 3.3.0, Rocky 8 | `https://apache-ambari.com/dist/bigtop/3.3.0/rocky8/` |
+| Bigtop 3.3.0, Rocky 9 | `https://apache-ambari.com/dist/bigtop/3.3.0/rocky9/` |
 
-**How to settle.** Fetch the distribution index and enumerate it. Mirror one repository and
-measure.
+- **Rocky 8 and Rocky 9 are both published.** Rocky 8 is chosen, matching upstream's Docker
+  base image.
+- **`gpgcheck=0`** in upstream's own repo file — packages are not GPG-signed. MD5 checksums
+  are published as `MD5SUMS.txt` per directory; the mirror task should verify against those,
+  since it is the only integrity check available.
+- Mirroring is `wget -r -np -nH --cut-dirs=4 --reject 'index.html*'` followed by `createrepo`.
+- **Total mirror size is still unmeasured** — measure at T006 and set the disk budget from it.
+
+**Two findings that raise the stakes on D-005 (the local mirror):**
+
+1. **The host is `apache-ambari.com`, not an `apache.org` domain.** It is a community-run
+   distribution site, not ASF infrastructure.
+2. The page states: *"This site is hosted on a server with limited bandwidth. Please be
+   considerate when downloading packages."*
+
+A community-run, bandwidth-constrained, unsigned, single-source distribution point is a
+genuine single point of failure for this project. The local mirror was already decided (D-005)
+for reproducibility and speed; it is now also a matter of **not hammering a volunteer-funded
+server**, and of surviving that server's eventual disappearance. **FR-012 (a full rebuild with
+upstream unreachable) is the requirement that matters most in this whole spec**, and it should
+be treated as such rather than as a nice-to-have. Consider committing the mirror manifest with
+per-file checksums so a future rebuild can be validated even if the source is gone.
+
+> ### ⚠ **"All packages are built for x86_64 architecture."**
+>
+> Stated plainly on the same page. There are **no aarch64 packages**. This resolves
+> SPIKE-A01 to its worst case and is the dominant finding for feature 002 — see
+> `../002-arm64-stack-enablement/research.md`.
 
 ### SPIKE-006 — End-to-end install duration (blocks NFR-001)
 
@@ -270,7 +379,10 @@ troubleshooting section (FR-026).
 | F7 | Repository metadata stale after adding locally-built packages (feature 002) | `createrepo` re-run is part of the mirror task, not a manual step |
 | F8 | Ports collide with a concurrently running `docker-hive` | FR-023: distinct host-port map, documented side by side |
 | F9 | Cluster left half-installed; `make up` re-run fails on "cluster already exists" | FR-021/P4: detect existing cluster state and resume or report clearly |
-| F10 | `/etc/hosts` and Docker DNS disagree after a container restarts with a new IP | Rely on Docker's embedded DNS and network aliases; do not write `/etc/hosts` |
+| F10 | `/etc/hosts` and Docker DNS disagree after a container restarts with a new IP | Rely on Docker's embedded DNS and network aliases; do not write `/etc/hosts`. **Upstream does the opposite** — it bind-mounts a hosts file with hardcoded `172.20.0.2`–`.5` addresses while declaring no network with that subnet, so its addresses need not match what Docker assigns. Rejected deliberately; see `upstream-reference.md` § Appraisal |
+| F11 | An underscore in a hostname, network name, or Compose project name produces `java.net.URISyntaxException` in Hive's metastore URI | D-011: hyphens only; validation rule V7 enforces DNS-label syntax on every generated FQDN and on the Compose project name |
+| F12 | `-j` and `--ambari-java-home` swapped at `ambari-server setup`, pointing Ambari at Java 8 and the stack at Java 17 | D-010: both flags set explicitly from one place; assert both JDK paths exist during preflight |
+| F13 | The community-run `apache-ambari.com` distribution point is slow, rate-limited, or gone | D-005 mirror; FR-012 offline rebuild; commit the mirror manifest with checksums so a rebuild is verifiable even if the source disappears |
 
 ---
 
@@ -309,3 +421,12 @@ Read-only. Nothing here creates a dependency (constitution P9).
 | Date | Spike / decision | Finding |
 |---|---|---|
 | 2026-08-27 | — | Initial draft. All spikes open. |
+| 2026-08-27 | SPIKE-003 | **Resolved.** Upstream uses `privileged: true` + `command: /sbin/init` on `bigtop/puppet:trunk-rockylinux-8`. No cgroup-version branching needed. |
+| 2026-08-27 | SPIKE-005 | **Resolved.** Repo URLs confirmed on `apache-ambari.com`; Rocky 8 and 9 published; `gpgcheck=0`, MD5SUMS only; mirror size still to measure. |
+| 2026-08-27 | SPIKE-001 | **Mostly resolved.** `ambari-agent.ini` `hostname=` + `ambari-agent start` is upstream's own mechanism. Retry-before-server-ready and hostname-reporting behaviour still to verify at T009. |
+| 2026-08-27 | SPIKE-002 | Upstream states ≥ 8 GB for a 4-node cluster *before* services are installed. Treated as a floor for `mini`, not a prediction for `standard`. Still to measure. |
+| 2026-08-27 | SPIKE-004 | Still open. Upstream's quick-start ends at the Ambari Web wizard; blueprints are not covered by those pages. |
+| 2026-08-27 | D-003 | Amended: base image is `bigtop/puppet:trunk-rockylinux-8`, not bare Rocky 8. |
+| 2026-08-27 | D-010 | Added: dual JDK — Java 17 for the Ambari server, Java 8 for the managed stack. |
+| 2026-08-27 | D-011 | Added: hyphens-only hostnames. Upstream's `bigtop_hostname0` would reintroduce the `URISyntaxException` the predecessor already fixed. |
+| 2026-08-27 | F10–F13 | Failure modes added from the upstream review. |

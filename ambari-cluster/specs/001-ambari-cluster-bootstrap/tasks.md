@@ -25,28 +25,36 @@ human), and the **`FR-###`** it satisfies.
 `@echo "not implemented"`.
 **Done:** `make` lists all targets; `git status` is clean.
 
-### T002 — [P] systemd-in-Docker base image · **resolves SPIKE-003**
-**FR:** FR-005, FR-006 · **Deps:** T001
-**Do:** `images/base/Dockerfile` — Rocky Linux 8, digest-pinned, `/sbin/init` as PID 1, plus
-`openssh-server`, `python3`, the stack JDK, `curl`, `which`, `sudo`.
-Determine the working Compose configuration on **three** hosts: cgroup v1 Linux, cgroup v2
-Linux (kernel 6.x), Docker Desktop macOS. Candidate keys to evaluate: `cgroup: host`,
-`cgroup_parent`, `cap_add: [SYS_ADMIN]`, `tmpfs: [/run, /run/lock]`,
-`volumes: /sys/fs/cgroup`, `stop_signal: SIGRTMIN+3`, `privileged: true` (fallback only).
-**Done:** on all three, `docker compose up -d && docker compose exec base systemctl is-system-running`
-prints `running` or `degraded` (not `offline`/hang). Working keys per case recorded in
-`research.md` under SPIKE-003, marked **resolved** with the date.
-**If it fails:** fall back to `privileged: true`, document the security implication, record the
-amendment.
+### T002 — [P] Host base image · **SPIKE-003 resolved; this task verifies**
+**FR:** FR-005, FR-006, FR-006a · **Deps:** T001
+**Do:** `images/base/Dockerfile` — `FROM bigtop/puppet:trunk-rockylinux-8`, digest-pinned.
+Bake in `upstream-reference.md` § 4 as image layers rather than `docker exec` steps:
+`sudo openssh-server openssh-clients which iproute net-tools less vim-enhanced initscripts
+wget curl tar unzip git dnf-plugins-core`, `dnf config-manager --set-enabled powertools`,
+the Rocky-Devel repo enabled, SELinux disabled, firewalld disabled.
+Install **both JDKs**: `java-1.8.0-openjdk-devel` and `java-17-openjdk-devel` (D-010), plus
+`python3-distro`.
+Compose keys are upstream's: `command: /sbin/init`, `privileged: true`, `mem_swappiness: 0`.
+**Done:** on cgroup v1 Linux, cgroup v2 Linux (kernel 6.x), and Docker Desktop macOS,
+`docker compose exec base systemctl is-system-running` prints `running` or `degraded` — not
+`offline`, not a hang. Both `/usr/lib/jvm/java-1.8.0-openjdk` and
+`/usr/lib/jvm/java-17-openjdk` exist. Any deviation from upstream's Compose keys (e.g. adding
+`stop_signal: SIGRTMIN+3` for clean shutdown) is recorded in `research.md`.
 
-### T003 — [P] Package repository survey · **resolves SPIKE-005**
-**FR:** FR-010, FR-011 · **Deps:** T001
-**Do:** Enumerate the published Ambari 3.0.0 and Bigtop 3.3.0 repositories. Record: exact base
-URLs, directory structure, which OS builds exist (Rocky 8?), **which architectures exist
-(`x86_64`, `aarch64`?)**, GPG key requirements, total mirror size.
-**Done:** `research.md` SPIKE-005 resolved with concrete URLs and sizes; `versions.yaml`
-populated with real pinned values. The architecture finding is **handed to feature 002** — it
-is that feature's primary input.
+### T003 — [P] Mirror the package repositories · **SPIKE-005 resolved; this task measures**
+**FR:** FR-010, FR-011, FR-011a · **Deps:** T001
+**Do:** URLs are confirmed (`upstream-reference.md` § 5) — mirror
+`apache-ambari.com/dist/ambari/3.0.0/rocky8/` and `.../bigtop/3.3.0/rocky8/`. Record the
+package inventory, per-package architecture tags, and **total mirror size** (still unmeasured).
+Fetch `MD5SUMS.txt` from each directory and verify every downloaded file against it (FR-011a);
+commit the resulting manifest so a future rebuild is verifiable even if the source disappears
+(F13).
+**Be considerate:** upstream states the host is bandwidth-limited. Mirror once, cache
+aggressively, never re-download in CI.
+**Done:** `versions.yaml` populated with real pinned values; mirror size recorded and the disk
+budget set from it; every file checksum-verified; the manifest committed.
+**Note:** the architecture question is already answered — **x86_64 only**. Feature 002 is on
+Path C. Confirm the per-package tags here so T-A01 can size the build precisely.
 
 ### T004 — Ambari REST introspection · **resolves SPIKE-004**
 **FR:** FR-013 · **Deps:** T002, T003
@@ -89,24 +97,41 @@ returns 200; a `yum install` from a test container succeeds with no upstream acc
 data survives container restart.
 
 ### T008 — Ambari server image and container
-**FR:** FR-013 · **Deps:** T002, T006, T007
-**Do:** `images/ambari-server/` — base + `ambari-server` from the mirror. `ambari-server setup`
-run non-interactively against the external PostgreSQL. Admin password from `secrets/`.
-**Done:** `make up` (partial) brings the server to a state where
-`GET /api/v1/clusters` returns 200 and `GET /api/v1/stacks` lists the stack.
+**FR:** FR-013, FR-006a · **Deps:** T002, T006, T007
+**Do:** `images/ambari-server/` — base + `python3-psycopg2` + `ambari-server` from the mirror.
+Load the schema that ships in the package
+(`/var/lib/ambari-server/resources/Ambari-DDL-Postgres-CREATE.sql`) into the `ambari` database,
+then run setup non-interactively — the exact upstream invocation
+(`upstream-reference.md` § 7), with `--databasehost` pointing at the `ambari-db` container
+rather than `localhost`, and secrets from `secrets/`:
+```
+ambari-server setup --jdbc-db=postgres --jdbc-driver=/usr/share/java/postgresql-<pinned>.jar
+ambari-server setup -s \
+  -j /usr/lib/jvm/java-1.8.0-openjdk \
+  --ambari-java-home /usr/lib/jvm/java-17-openjdk \
+  --database=postgres --databasehost=ambari-db.ambari.local --databaseport=5432 \
+  --databasename=ambari --databaseusername=ambari --databasepassword=<secret>
+```
+**Watch:** `-j` is the **stack's** JDK (8); `--ambari-java-home` is **Ambari's** (17).
+Swapping them is failure mode F12.
+**Done:** `GET /api/v1/clusters` returns 200 and `GET /api/v1/stacks` lists the stack. The
+default `admin`/`admin` credential is changed to the generated one (P7).
 
 ---
 
 ## Phase 2 — Hosts and registration
 
-### T009 — Ambari agent image · **resolves SPIKE-001**
+### T009 — Ambari agent image · **SPIKE-001 mostly resolved; verify the edges**
 **FR:** FR-008 · **Deps:** T008
-**Do:** `images/ambari-agent/` — base + `ambari-agent` from the mirror, with
-`/etc/ambari-agent/conf/ambari-agent.ini` pointing at the server FQDN and the agent service
-enabled at boot. Determine the required fields, the hostname-reporting mechanism (`hostname -f`
-vs `hostname_script`/`public_hostname_script`), and whether certificate exchange needs
-pre-seeding.
-Verify the agent **retries** when started before the server is ready (failure mode F2).
+**Do:** `images/ambari-agent/` — base + `ambari-agent` from the mirror. The mechanism is
+confirmed (`upstream-reference.md` § 8): set `hostname=` in
+`/etc/ambari-agent/conf/ambari-agent.ini` to the server's FQDN and start the agent. Enable it
+at boot rather than starting it by hand.
+Still to verify — these are the failure modes, not the mechanism:
+- Does the agent **retry** when started before the server's schema is ready, or exit? (F2)
+- Does it report `hostname -f`, or does it need `hostname_script` /
+  `public_hostname_script`? This decides whether blueprint host mapping matches. (F1)
+- Does two-way SSL certificate exchange need pre-seeding on first registration?
 **Done:** one agent container self-registers with no SSH and no manual step;
 `GET /api/v1/hosts` lists it; killing and restarting the server does not permanently break the
 agent. SPIKE-001 resolved in `research.md`.
@@ -114,13 +139,21 @@ agent. SPIKE-001 resolved in `research.md`.
 add tasks for key generation and distribution.
 
 ### T010 — FQDN and network identity
-**FR:** FR-007 · **Deps:** T009
-**Do:** Compose `hostname: <name>.<domain>` plus a matching network alias for every host. Add a
-preflight assertion, run inside each host before registration, that `hostname -f` equals the
+**FR:** FR-007, FR-007a · **Deps:** T009
+**Do:** Compose `hostname: <name>` + `domainname: <domain>` (upstream's approach, giving
+`hostname -f` = `<name>.<domain>`) plus a matching network alias so Docker DNS resolves it. Add
+a preflight assertion, run inside each host before registration, that `hostname -f` equals the
 expected FQDN and that every peer FQDN resolves.
-**Done:** `GET /api/v1/hosts` reports full FQDNs — never short names or container IDs (failure
-mode F1). Cross-host `ping <peer-fqdn>` succeeds. The assertion fails loudly when the hostname
-is deliberately misconfigured.
+**Do NOT** bind-mount a hand-written `/etc/hosts` with hardcoded IPs. Upstream does; its own
+Compose file declares no network with the subnet it hardcodes, so the addresses need not match
+what Docker assigns, and they change on recreate (F10). Use Docker's embedded DNS.
+**Enforce hyphens.** No underscore may appear in any hostname, FQDN label, network name, or the
+Compose project name — Compose derives network names from the project name, which is exactly
+what produced the predecessor's `java.net.URISyntaxException` (D-011, F11).
+**Done:** `GET /api/v1/hosts` reports full FQDNs — never short names or container IDs (F1).
+Cross-host `ping <peer-fqdn>` succeeds. `docker network ls` shows no underscore in the
+project's network name. The assertion fails loudly when the hostname is deliberately
+misconfigured.
 
 ### T011 — [P] SSH for debugging
 **FR:** FR-009 · **Deps:** T002
@@ -274,7 +307,9 @@ completed task and every `SPIKE-###` is resolved or explicitly deferred with an 
 | FR-004 | T012 | | FR-018 | T014 |
 | FR-005 | T002 | | FR-019 | T014 |
 | FR-006 | T002 | | FR-020 | T019, T020 |
+| FR-006a | T002, T008 | | FR-011a | T003 |
 | FR-007 | T010 | | FR-021 | T019 |
+| FR-007a | T010, T012 | | | |
 | FR-008 | T009 | | FR-022 | T007, T019 |
 | FR-009 | T011 | | FR-023 | T024 |
 | FR-010 | T006 | | FR-024 | T022 |
@@ -283,12 +318,12 @@ completed task and every `SPIKE-###` is resolved or explicitly deferred with an 
 | FR-013 | T008, T017 | | FR-027 | T024 |
 | FR-014 | T015 | | | |
 
-| Spike | Resolved by |
-|---|---|
-| SPIKE-001 agent self-registration | T009 |
-| SPIKE-002 resource requirements | T005 |
-| SPIKE-003 systemd / cgroups | T002 |
-| SPIKE-004 REST payload shapes | T004 |
-| SPIKE-005 repository layout | T003 |
-| SPIKE-006 install duration | T025 |
-| SPIKE-007 Ambari Metrics footprint | T005 |
+| Spike | Status | Resolved / verified by |
+|---|---|---|
+| SPIKE-001 agent self-registration | **Mostly resolved** 2026-08-27 (upstream) | T009 verifies retry + hostname reporting |
+| SPIKE-002 resource requirements | Open | T005 |
+| SPIKE-003 systemd / cgroups | **Resolved** 2026-08-27 (`privileged: true`) | T002 verifies on 3 hosts |
+| SPIKE-004 REST payload shapes | **Open** — upstream quick-start stops at the web wizard | T004 |
+| SPIKE-005 repository layout | **Resolved** 2026-08-27 (URLs, Rocky 8/9, x86_64 only) | T003 measures mirror size |
+| SPIKE-006 install duration | Open | T025 |
+| SPIKE-007 Ambari Metrics footprint | Open | T005 |

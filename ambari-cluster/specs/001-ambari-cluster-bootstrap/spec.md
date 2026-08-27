@@ -99,15 +99,23 @@ them against the new cluster unchanged apart from connection endpoints.
 
 ### Host images and runtime
 
-- **FR-005** Every cluster host MUST be a container running **systemd** as PID 1 on **Rocky
-  Linux 8**, so that Ambari can manage services through `systemctl` exactly as it would on a
-  physical host.
-- **FR-006** The host image MUST work on both cgroup v1 and cgroup v2 hosts, including Docker
-  Desktop on macOS and Linux kernels 6.x. The compose configuration MUST document which keys
-  are required for each. *(Blocked on SPIKE-003.)*
+- **FR-005** Every cluster host MUST be a container built from
+  **`bigtop/puppet:trunk-rockylinux-8`** running **`/sbin/init`** as PID 1 under
+  **`privileged: true`**, so that Ambari can manage services through `systemctl` exactly as it
+  would on a physical host. *(Upstream's own configuration — `upstream-reference.md` § 1.)*
+- **FR-006** The host image MUST work on cgroup v1 hosts, cgroup v2 hosts (Linux 6.x), and
+  Docker Desktop on macOS. `privileged: true` is expected to make this uniform; the README MUST
+  state the privilege requirement and its security implication plainly rather than burying it.
+- **FR-006a** The host image MUST install **both JDK 8 and JDK 17** and MUST pass them
+  separately at `ambari-server setup` — Java 17 as `--ambari-java-home` for Ambari itself,
+  Java 8 as `-j` for the managed stack. *(Decision D-010; failure mode F12.)*
 - **FR-007** Every cluster host MUST have a resolvable **fully-qualified domain name**, MUST
   return that FQDN from `hostname -f`, and MUST be resolvable by that FQDN from every other
-  host and from the Ambari server.
+  host and from the Ambari server. Resolution MUST use Docker's embedded DNS and network
+  aliases; the system MUST NOT write a hosts file with hardcoded IPs.
+- **FR-007a** Every generated hostname, FQDN label, network name, and Compose project name
+  MUST match `[a-z0-9]([a-z0-9-]*[a-z0-9])?` — **underscores are forbidden**. *(Decision
+  D-011; failure mode F11; validation rule V7.)*
 - **FR-008** `ambari-agent` MUST be pre-installed in the host image and MUST self-register
   with the Ambari server on boot. The SSH-based host bootstrap wizard MUST NOT be on the
   happy path.
@@ -117,12 +125,22 @@ them against the new cluster unchanged apart from connection endpoints.
 
 ### Package distribution
 
-- **FR-010** The system MUST run a local package-repository container serving the Ambari and
-  Bigtop RPMs over HTTP to all cluster hosts.
+- **FR-010** The system MUST run a local package-repository container serving the Ambari 3.0.0
+  and Bigtop 3.3.0 RPMs over HTTP to all cluster hosts, mirrored from
+  `apache-ambari.com/dist/{ambari/3.0.0,bigtop/3.3.0}/rocky8/`.
 - **FR-011** The repository contents MUST be populated from a single pinned version manifest,
   and the population step MUST be cacheable so that repeat builds do not re-download.
+  The upstream host is community-run and explicitly bandwidth-constrained; re-downloading on
+  every build is not acceptable behaviour toward it.
+- **FR-011a** Mirrored packages MUST be verified against the published `MD5SUMS.txt`. Upstream
+  serves the repository with `gpgcheck=0` and no signatures, so this is the only integrity
+  check available, and the README MUST state that limitation.
 - **FR-012** After the repository is populated once, a full `make destroy && make up` MUST
-  succeed with no access to upstream package mirrors.
+  succeed with no access to upstream package mirrors. **This is the highest-value requirement
+  in this specification**: the sole distribution point is a single community-run server, and
+  this requirement is what keeps the project buildable if it becomes slow or disappears.
+  The mirror manifest with per-file checksums MUST be committed so a future rebuild remains
+  verifiable.
 
 ### Provisioning
 
@@ -214,6 +232,10 @@ The feature is complete when **all** hold:
    explicitly deferred with a recorded owner and date. *(P10)*
 9. A deliberately induced failure (e.g. a host stopped mid-install) produces a diagnostic
    dump naming the failing host and component, not a bare stack trace. *(FR-015, P6)*
+10. No generated hostname, FQDN, network name, or Compose project name contains an
+    underscore. *(FR-007a; the predecessor's `URISyntaxException` does not recur)*
+11. Both JDK 8 and JDK 17 are present on every host and are passed to the correct flags.
+    *(FR-006a)*
 
 ## 8. Requirement → task traceability
 
