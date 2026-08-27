@@ -1,0 +1,33 @@
+# Generated secrets — never commit. See constitution P7.
+secrets/
+*.pem
+*.key
+!**/*.md
+
+# Generated artifacts — derived from cluster-topology.yaml, not authored
+generated/
+docker-compose.generated.yml
+blueprint.generated.json
+cluster-template.generated.json
+
+# Local package mirror — large, reproducible from the manifest
+repo-cache/
+*.rpm
+*.tar.gz
+
+# Build & tooling
+.venv/
+__pycache__/
+*.pyc
+.gradle/
+build/
+
+# Cluster runtime state
+data/
+logs/
+*.log
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/

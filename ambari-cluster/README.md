@@ -1,0 +1,125 @@
+# ambari-bigtop-cluster — specification package
+
+> **Status: specifications only. No implementation exists yet.**
+>
+> This directory is the *seed of a new standalone repository*. It currently lives inside
+> `docker-hive` for convenience, but it has no dependency on it. Lift it out with
+> `cp -r ambari-cluster/ ../ambari-bigtop-cluster/` and it remains complete and coherent.
+
+## What this project will be
+
+A reproducible, containerised **Apache Hadoop cluster provisioned and managed by Apache
+Ambari** — instead of installed by hand.
+
+The predecessor project (`docker-hive`) builds its cluster manually: one hand-written
+container per Hadoop daemon, with configuration `sed`-injected into XML by a shell
+entrypoint. It works, and it teaches the *components* well — but it teaches nothing about
+*operating a cluster*, and it cannot grow past one daemon per container.
+
+This project replaces that with the real thing:
+
+| | `docker-hive` (predecessor) | `ambari-bigtop-cluster` (this project) |
+|---|---|---|
+| Install method | Tarballs unpacked in Dockerfiles | RPM packages from a Bigtop repository |
+| Configuration | `sed` into XML from `hadoop-hive.env` | Ambari blueprint `configurations[]` |
+| Topology | One daemon per container, fixed | Declarative `cluster-topology.yaml`, N hosts |
+| Lifecycle | `docker compose up` | Ambari server + agents, service start/stop/restart |
+| Observability | Per-daemon web UIs only | Ambari Web + Ambari Metrics + per-daemon UIs |
+| Adding a service | Write a new Dockerfile | Add a component to a host group |
+
+## The stack
+
+**Apache Ambari 3.0.0** managing the **Apache Bigtop 3.3.0** stack.
+
+This combination is deliberate: it is fully open — no Cloudera subscription, no paywalled HDP
+repositories — and Bigtop 3.3.0 ships **Hadoop 3.3.6** and **Hive 3.1.3**, the exact versions
+`docker-hive` runs today. That makes workload parity a testable acceptance criterion rather
+than an aspiration.
+
+| Component | Version | | Component | Version |
+|---|---|---|---|---|
+| Hadoop | 3.3.6 | | Tez | 0.10.2 |
+| Hive | 3.1.3 | | Ranger | 2.4.0 |
+| Spark | 3.3.4 | | Zeppelin | 0.11.0 |
+| HBase | 2.4.17 | | Solr | 8.11.2 |
+| ZooKeeper | 3.7.2 | | Kafka | 2.8.2 |
+| Flink | 1.16.2 | | Livy | 0.8.0 |
+| Phoenix | 5.1.3 | | Alluxio | 2.9.3 |
+
+> **Accepted regression:** Spark drops from 3.5.5 (predecessor) to 3.3.4 (Bigtop 3.3.0).
+> Ambari-managed lifecycle is worth more here than two Spark minor versions. See
+> `specs/001-ambari-cluster-bootstrap/research.md` § D-002.
+
+## How to consume these specs
+
+Read them in this order:
+
+1. **`.specify/memory/constitution.md`** — the non-negotiable principles. Every task must
+   obey these. Read it first and do not violate it without an explicit, recorded amendment.
+2. **`specs/001-ambari-cluster-bootstrap/spec.md`** — *what* is being built and *why*, as
+   numbered functional requirements (`FR-###`) with acceptance criteria.
+3. **`specs/001-ambari-cluster-bootstrap/research.md`** — the decisions already made, the
+   alternatives already rejected, and — importantly — the **open spikes** (`SPIKE-###`) that
+   must be resolved by measurement before the design can be trusted.
+4. **`specs/001-ambari-cluster-bootstrap/plan.md`** — the technical architecture and the
+   project's file layout.
+5. **`specs/001-ambari-cluster-bootstrap/contracts/`** — the interfaces: the topology input
+   format, the blueprint shape, the Ambari REST sequence, the CLI surface.
+6. **`specs/001-ambari-cluster-bootstrap/tasks.md`** — the ordered, executable task list.
+   **Start here when you begin implementing.**
+
+Then the two dependent features:
+
+- **`specs/002-arm64-stack-enablement/`** — making `linux/arm64` a first-class target. This
+  is *not* optional; it is a hard requirement. It is separated because its fallback path
+  (building Bigtop RPMs from source) is a substantial workstream of its own.
+- **`specs/003-workload-parity-validation/`** — proving the new cluster actually runs the
+  predecessor's workloads.
+
+### Rules for the implementing agent
+
+- **Resolve the spikes first.** `research.md` marks every claim that was *not* verified
+  during specification. Several of them (aarch64 package availability, cgroup v2 behaviour,
+  exact Ambari 3.0 REST payload shapes) can invalidate parts of the design. The first tasks
+  in `tasks.md` exist to settle them. Do not build on an unresolved spike.
+- **Do not silently change a decision.** If a spike disproves a decision in `research.md`,
+  amend `research.md` — record the finding, the new decision, and the date — then proceed.
+- **Traceability is mandatory.** Every task cites the `FR-###` it satisfies. Every commit
+  cites the `T###` it completes.
+- **Nothing in `docker-hive` may be modified.** It is prior art and a source of test
+  fixtures, never a dependency.
+
+## Layout
+
+```
+.
+├── README.md                      ← you are here
+├── .gitignore
+├── .specify/memory/constitution.md
+└── specs/
+    ├── 001-ambari-cluster-bootstrap/
+    │   ├── spec.md            what & why — FR-### and acceptance criteria
+    │   ├── plan.md            how — architecture, phases, file layout
+    │   ├── research.md        decisions (D-###), rejected alternatives, spikes (SPIKE-###)
+    │   ├── data-model.md      the entities and their relationships
+    │   ├── quickstart.md      the end-to-end walkthrough that must work when done
+    │   ├── contracts/
+    │   │   ├── cluster-topology.yaml   the declarative input contract
+    │   │   ├── blueprint.md            Ambari blueprint + creation template contract
+    │   │   ├── ambari-rest.md          the headless install REST sequence
+    │   │   └── cli.md                  the Makefile / CLI surface
+    │   └── tasks.md           T### — ordered, executable
+    ├── 002-arm64-stack-enablement/
+    │   ├── spec.md
+    │   ├── research.md
+    │   └── tasks.md
+    └── 003-workload-parity-validation/
+        ├── spec.md
+        └── tasks.md
+```
+
+## Provenance
+
+Specification drafted against `docker-hive` @ `b2da7c2`. The predecessor is credited as prior
+art for its port allocation map, its readiness-gating pattern, its Hive metastore schema
+bundle, and its two smoke-test fixtures — all of which these specs reuse.

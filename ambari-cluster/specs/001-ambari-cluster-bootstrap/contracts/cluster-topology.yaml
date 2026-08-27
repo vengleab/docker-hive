@@ -1,0 +1,187 @@
+# =============================================================================
+# CONTRACT: cluster-topology.yaml
+# =============================================================================
+# The single source of truth for cluster shape (constitution P2).
+#
+# The Docker Compose file, the Ambari blueprint, and the cluster creation
+# template are all GENERATED from this file. They are build outputs. Editing a
+# generated file is a bug.
+#
+# This document is the annotated contract. The real file lives at the project
+# root. Validation rules V1-V10 are in ../data-model.md.
+# =============================================================================
+
+# --- Identity ----------------------------------------------------------------
+
+# Becomes the Ambari cluster name. Pattern: [a-z][a-z0-9_-]{2,31}
+cluster_name: bigtop-dev
+
+# DNS suffix for every host. Each host's FQDN is "<host>.<domain>".
+# Ambari identifies hosts by FQDN, so this is load-bearing, not cosmetic.
+# See FR-007 and failure mode F1.
+domain: ambari.local
+
+# --- Profile -----------------------------------------------------------------
+
+# mini      1 all-in-one host + infrastructure. Laptop / classroom.
+# standard  master + 2 workers + infrastructure. The default.
+# full      master + 3 workers + edge + infrastructure. Workstation / CI.
+#
+# The profile supplies defaults for host_groups and resources; anything set
+# explicitly below overrides it. Real resource requirements are pending
+# SPIKE-002 and MUST NOT be published as fact until measured.
+profile: standard
+
+# --- Services ----------------------------------------------------------------
+
+# Services to install, by Ambari service name. Every name must exist in the
+# stack named in versions.yaml (rule V1), and dependencies must be satisfied
+# (rule V4) -- e.g. HBASE requires ZOOKEEPER, HIVE requires HDFS + YARN.
+services:
+  - HDFS
+  - YARN
+  - MAPREDUCE2
+  - ZOOKEEPER
+  - HIVE
+  - TEZ
+  - AMBARI_METRICS      # optional; may be full-profile-only pending SPIKE-007
+  # - SPARK3
+  # - HBASE
+  # - KAFKA
+  # - ZEPPELIN
+  # - RANGER
+
+# --- Host groups -------------------------------------------------------------
+
+# A host group is a role. `cardinality` hosts are generated per group, named
+# "<group><ordinal>" -- worker1, worker2, ... -- each becoming an Ambari host.
+host_groups:
+
+  - name: master
+    cardinality: 1
+    resources:
+      memory: 6g
+      cpus: 2
+    components:
+      - NAMENODE
+      - SECONDARY_NAMENODE
+      - RESOURCEMANAGER
+      - HISTORYSERVER            # MapReduce2 JobHistory
+      - APP_TIMELINE_SERVER
+      - ZOOKEEPER_SERVER
+      - HIVE_METASTORE
+      - HIVE_SERVER
+      - METRICS_COLLECTOR
+      - METRICS_MONITOR
+      # Client configs -- needed for CLI use on this host
+      - HDFS_CLIENT
+      - YARN_CLIENT
+      - MAPREDUCE2_CLIENT
+      - HIVE_CLIENT
+      - TEZ_CLIENT
+      - ZOOKEEPER_CLIENT
+
+  - name: worker
+    cardinality: 2
+    resources:
+      memory: 4g
+      cpus: 2
+    volumes:
+      - /hadoop/hdfs/data
+      - /hadoop/yarn/local
+      - /hadoop/yarn/log
+    components:
+      - DATANODE
+      - NODEMANAGER
+      - METRICS_MONITOR
+      - HDFS_CLIENT
+      - YARN_CLIENT
+      - MAPREDUCE2_CLIENT
+
+  # Optional. Client-only host; carries Jupyter, replacing docker-hive's
+  # spark-notebook. Not an Ambari-managed service -- a client (D-008).
+  # - name: edge
+  #   cardinality: 1
+  #   resources:
+  #     memory: 3g
+  #     cpus: 2
+  #   components:
+  #     - HDFS_CLIENT
+  #     - YARN_CLIENT
+  #     - MAPREDUCE2_CLIENT
+  #     - HIVE_CLIENT
+  #     - TEZ_CLIENT
+  #     - METRICS_MONITOR
+
+# --- Configuration overrides -------------------------------------------------
+
+# Escape hatch for tuning that is not a service default.
+#
+# Property names are written in REAL DOTTED FORM. The predecessor's
+# `_` -> `.`, `___` -> `-`, `__` -> `_` encoding is INPUT to the migration tool
+# (FR-017) and never appears here. Rule V9 rejects any name containing `__`.
+#
+# Precedence, last wins:
+#   service defaults  <  migrated legacy tuning  <  these overrides
+#
+# The values below are carried over from docker-hive's hadoop-hive.env; the
+# full carried/dropped table is docs/config-migration.md (FR-018).
+config_overrides:
+
+  - config_type: yarn-site
+    properties:
+      yarn.log-aggregation-enable: "true"
+      yarn.nodemanager.resource.memory-mb: "16384"
+      yarn.nodemanager.resource.cpu-vcores: "8"
+      yarn.nodemanager.disk-health-checker.max-disk-utilization-per-disk-percentage: "98.5"
+      yarn.timeline-service.enabled: "true"
+      yarn.resourcemanager.recovery.enabled: "true"
+
+  - config_type: mapred-site
+    properties:
+      mapreduce.map.memory.mb: "4096"
+      mapreduce.reduce.memory.mb: "8192"
+      mapreduce.map.java.opts: "-Xmx3072m"
+      mapreduce.reduce.java.opts: "-Xmx6144m"
+
+  - config_type: hive-site
+    properties:
+      hive.support.concurrency: "true"
+      hive.txn.manager: "org.apache.hadoop.hive.ql.lockmgr.DbTxnManager"
+      hive.compactor.initiator.on: "true"
+      hive.compactor.worker.threads: "2"
+
+  # DELIBERATELY NOT CARRIED OVER from docker-hive (FR-019):
+  #
+  #   dfs.permissions.enabled=false
+  #       Disables HDFS authorisation entirely. The predecessor needed it
+  #       because every daemon ran as root. Ambari installs proper service
+  #       users, so it is both unnecessary and a bad lesson.
+  #
+  #   hadoop.http.staticuser.user=root
+  #       Same reason. Ambari's service users replace it.
+  #
+  #   POSTGRES_HOST_AUTH_METHOD=trust
+  #       Disables database authentication. Replaced by generated passwords
+  #       in secrets/ (constitution P7, decision D-007).
+  #
+  #   dfs.namenode.datanode.registration.ip-hostname-check=false
+  #       A workaround for the predecessor's hostname handling. This project
+  #       gives every host a real, resolvable FQDN (FR-007) instead, so the
+  #       check should pass on its own. If it does not, that is failure mode
+  #       F1 and must be fixed at the hostname layer, not masked here.
+  #
+  #   hadoop.proxyuser.hue.*
+  #       Hue is dropped (D-008).
+
+# --- Host port exposure ------------------------------------------------------
+
+# Ports published to the Docker host. Chosen to avoid collision with a
+# concurrently running docker-hive (failure mode F8). Full map: docs/ports.md.
+expose:
+  ambari_web: 8080          # docker-hive uses none
+  namenode_ui: 19870        # docker-hive: 9870
+  resourcemanager_ui: 18088 # docker-hive: 8088
+  jobhistory_ui: 19888      # docker-hive: 8188
+  hiveserver2: 20000        # docker-hive: 10000
+  jupyter: 18888            # docker-hive: 8888  (edge group only)
