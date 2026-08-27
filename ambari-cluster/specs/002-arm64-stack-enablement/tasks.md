@@ -1,21 +1,40 @@
 # Tasks — Feature 002 (ARM64)
 
-> **Path C is confirmed** (2026-08-27): upstream publishes x86_64 packages only. Phase A2 —
-> building the stack from source, 3–6 weeks — is therefore **in scope, not contingent**.
+> **Path is not yet determined.** The Ambari distribution site is x86_64-only, but Apache
+> Bigtop supports AArch64 and already ships both the ARM host image
+> (`bigtop/puppet:3.3.0-rockylinux-8-aarch64`) and the ARM build environment
+> (`bigtop/slaves:3.3.0-rockylinux-8-aarch64`). An earlier 3–6 week Path C estimate was based
+> on misreading the Ambari site's limitation as Bigtop's, and **has been withdrawn**.
 >
-> **T-A00 is a hard gate.** That much work is the project owner's call to make, explicitly.
+> **T-A01a comes first** and is cheap. It decides whether this feature is a week or a month.
+> Do not take the scope decision, or quote an estimate, before it has run.
 
-**Gate:** do not start T-A02 or later until **T-A00** and **T-A01** have reported.
-Constitution P10.
+**Gate:** do not start T-A02 or later until **T-A01a**, **T-A00**, and **T-A01** have
+reported, in that order. Constitution P10.
 
 ---
 
-## Phase A0 — Confirm scope and size the work (blocking)
+## Phase A0 — Size the work, then decide (blocking)
 
-### T-A00 — Scope decision · **BLOCKS EVERYTHING**
+### T-A01a — Does Bigtop publish aarch64 RPMs? · **resolves SPIKE-A04** · **DO THIS FIRST**
 **FR:** — · **Deps:** none
-**Do:** Put the confirmed Path C finding and its 3–6 week estimate to the project owner. Three
-legitimate outcomes:
+**Do:** From an **unrestricted network** (the drafting environment's proxy blocks this host and
+returns an identical 403 for every architecture — that is not evidence of absence), check:
+```bash
+curl -I http://repos.bigtop.apache.org/releases/3.3.0/rockylinux/8/aarch64/repodata/repomd.xml
+curl -I http://repos.bigtop.apache.org/releases/3.3.0/rockylinux/8/x86_64/repodata/repomd.xml
+```
+If `aarch64/` resolves, enumerate its packages and compare against the components this project
+installs (Hadoop, Hive, ZooKeeper, Tez, Ambari Metrics, `bigtop-utils`/`-jsvc`/`-groovy`/
+`-select`).
+**Done:** the answer is recorded in `research.md` under SPIKE-A04, the path (A / B / C) is
+declared, and a **real estimate** replaces the withdrawn one.
+**Time:** minutes, not days. It gates everything else in this feature.
+
+### T-A00 — Scope decision · **BLOCKS PHASE A2**
+**FR:** — · **Deps:** T-A01a
+**Do:** Put T-A01a's measured path and estimate to the project owner — **not the withdrawn
+3–6 week figure.** Three legitimate outcomes:
 1. **Proceed** — Path C is funded; feature 002 runs in full.
 2. **Defer** — record a time-boxed P5 exception in `research.md` (date, reason, owner, review
    date, interim guidance for Apple Silicon users), ship amd64, revisit later.
@@ -26,19 +45,19 @@ Phase A2 without outcome 1.
 **Note:** outcome 2 or 3 is not a failure. It is a legitimate trade-off, and the honest thing
 is to record it rather than let ARM64 quietly rot as a perpetually-open task.
 
-### T-A01 — Scope the build · **SPIKE-A01 already resolved**
-**FR:** — · **Deps:** feature 001 T003
-**Do:** SPIKE-A01 is answered — no aarch64 packages. This task now sizes the work. Execute the
-method in `research.md` § SPIKE-A01 and fill in the component/architecture table, checking the
-two highest-leverage questions **first**:
-1. Does an **aarch64 `bigtop/puppet:trunk-rockylinux-8`** exist? If not, the host image must be
-   built before any package work.
-2. Are **`ambari-server` / `ambari-agent`** genuinely architecture-specific, or only tagged
-   `x86_64` while containing just Java and Python? If the latter, the management layer may be
-   cheaply rebuildable and only the *stack* needs a real build — the difference between three
-   weeks and six.
-**Done:** the table is complete; the build inventory (what must be built vs. what can be
-repackaged) is recorded; the estimate given to T-A00 is refined with real numbers.
+### T-A01 — Build the component inventory
+**FR:** — · **Deps:** T-A01a, feature 001 T003
+**Do:** Fill in the component/architecture table in `research.md` § SPIKE-A01, covering both
+sources — Bigtop's repo (per T-A01a) and the Ambari site's.
+The remaining high-leverage question: are **`ambari-server` / `ambari-agent`** genuinely
+architecture-specific, or only *tagged* `x86_64` while containing just Java and Python? Check
+`rpm -qp --qf '%{ARCH}\n'` and inspect the payload for compiled objects; try installing with
+`--ignorearch` on an ARM host. If they are effectively portable, the management layer needs no
+build work at all.
+Already answered, do not re-investigate: the ARM **host image** and the ARM **build slave**
+both exist (`bigtop/puppet:` and `bigtop/slaves:3.3.0-rockylinux-8-aarch64`).
+**Done:** the table is complete; the build inventory (what must be built, what can be mirrored,
+what can be repackaged) is recorded.
 
 ---
 
@@ -71,18 +90,20 @@ is the machine-checkable difference between "works" and "works natively".
 
 ---
 
-## Phase A2 — Build from source · **REQUIRED (Path C confirmed)**
+## Phase A2 — Build from source · **required only on Paths B and C**
 
-*Gated on T-A00 outcome 1. This is the 3–6 week body of the feature.*
+*Gated on T-A01a's answer and T-A00 outcome 1. Skip entirely on Path A.*
 
 ### T-A05 — Bigtop toolchain spike · **resolves SPIKE-A02**
 **FR:** FR-A09 · **Deps:** T-A00 (outcome 1), T-A01
-**Do:** Clone Apache Bigtop at the 3.3.0 tag on an ARM64 machine. Read that release's own
-build documentation and `build.gradle` for the real task names and container image tags —
-**do not guess them.** Run the toolchain step. Build one small component end to end
-(`bigtop-utils` or `zookeeper`).
-If T-A01 found no aarch64 `bigtop/puppet:trunk-rockylinux-8`, building that image is part of
-this task and comes first.
+**Do:** Use **`bigtop/slaves:3.3.0-rockylinux-8-aarch64`** — Bigtop's own ARM build
+environment for this exact OS and version. No toolchain needs assembling and no
+cross-compilation strategy is required; this is a CI-exercised path.
+Clone Apache Bigtop at the 3.3.0 tag. Read that release's own build documentation and
+`build.gradle` for the real Gradle task names — **do not guess them.** Build one small
+component end to end (`bigtop-utils` or `zookeeper`).
+Also record whether the build runs acceptably inside Docker Desktop on Apple Silicon or wants
+a real ARM64 Linux host.
 **Done:** one aarch64 RPM is produced and installs on Rocky 8 ARM64. `research.md` records the
 exact commands, whether the build runs natively or needs an amd64 host, and the wall-clock
 time. SPIKE-A02 resolved.
@@ -161,8 +182,9 @@ and a cadence. Silence on this point is not acceptable — P5 is a release gate.
 | FR-A06 | T-A09 | | FR-A13 | T-A08, T-A11 |
 | FR-A07 | T-A11 | | NFR-A01 | T-A10 |
 
-| Spike | Resolved by |
-|---|---|
-| SPIKE-A01 package availability | T-A01 |
-| SPIKE-A02 Bigtop toolchain on ARM | T-A05 |
-| SPIKE-A03 native library coverage | T-A08 |
+| Spike | Status | Resolved / verified by |
+|---|---|---|
+| SPIKE-A01 packages at the *Ambari* site | **Resolved** 2026-08-27 — none | T-A01 inventories |
+| **SPIKE-A04 packages at *Bigtop's* repo** | **OPEN — highest value, check first** | **T-A01a** |
+| SPIKE-A02 Bigtop toolchain on ARM | **Mostly resolved** — ARM build slave exists | T-A05 confirms details |
+| SPIKE-A03 native library coverage | Open — the real risk on any built path | T-A08 |

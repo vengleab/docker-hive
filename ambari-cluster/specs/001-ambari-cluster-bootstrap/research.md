@@ -338,11 +338,18 @@ upstream unreachable) is the requirement that matters most in this whole spec**,
 be treated as such rather than as a nice-to-have. Consider committing the mirror manifest with
 per-file checksums so a future rebuild can be validated even if the source is gone.
 
-> ### ⚠ **"All packages are built for x86_64 architecture."**
+> ### **"All packages are built for x86_64 architecture."**
 >
-> Stated plainly on the same page. There are **no aarch64 packages**. This resolves
-> SPIKE-A01 to its worst case and is the dominant finding for feature 002 — see
-> `../002-arm64-stack-enablement/research.md`.
+> Stated plainly on the same page: there are no aarch64 packages **at this distribution
+> point**.
+>
+> This is a fact about `apache-ambari.com`'s build capacity, **not about Apache Bigtop**,
+> which supports AArch64 and publishes both an ARM host image
+> (`bigtop/puppet:3.3.0-rockylinux-8-aarch64`) and an ARM build environment
+> (`bigtop/slaves:3.3.0-rockylinux-8-aarch64`) for this exact OS and stack version.
+>
+> Whether Bigtop's *own* repository carries aarch64 RPMs is the open question, and it is
+> where feature 002 should start. See `../002-arm64-stack-enablement/research.md`.
 
 ### SPIKE-006 — End-to-end install duration (blocks NFR-001)
 

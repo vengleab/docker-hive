@@ -75,10 +75,11 @@ Read them in this order:
 Then the two dependent features:
 
 - **`specs/002-arm64-stack-enablement/`** — making `linux/arm64` a first-class target.
-  ⚠ **Read this before planning.** The official Ambari download page states that *"all
-  packages are built for x86_64 architecture"*, so native ARM64 requires **building the Bigtop
-  3.3.0 stack from source** — a 3–6 week workstream. Task **T-A00** puts that cost to the
-  project owner as an explicit decision before any of it starts.
+  The Ambari download page states that *"all packages are built for x86_64 architecture"* —
+  but that is the **distribution site's** build capacity, not a limitation of Apache Bigtop,
+  which supports AArch64 and already ships an ARM host image and ARM build environment for
+  this exact stack. Start at **T-A01a**: it takes minutes and decides whether this feature is
+  a week or a month.
 - **`specs/003-workload-parity-validation/`** — proving the new cluster actually runs the
   predecessor's workloads.
 

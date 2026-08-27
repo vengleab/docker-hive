@@ -243,7 +243,7 @@ Sizing profiles measured (SPIKE-002, SPIKE-006) and published as real numbers.
 | ~~systemd-in-Docker not portable~~ | — | **Retired** | Upstream uses `privileged: true`; no cgroup branching needed |
 | ~~Agent self-registration unworkable~~ | — | **Low** | Confirmed as upstream's own mechanism; only retry/hostname behaviour left to verify |
 | ~~No Rocky 8 builds~~ | — | **Retired** | Rocky 8 *and* 9 confirmed published |
-| **No aarch64 packages — Path C confirmed** | Feature 002 becomes a 3–6 week build project; P5 release gate blocked | **Certain** | Owner decision at feature 002 T-A00; P5 time-boxed exception to ship amd64 meanwhile |
+| No aarch64 packages at the Ambari distribution site | Feature 002 must source them elsewhere; P5 release gate at risk | Certain | Bigtop supports AArch64 and ships ARM host + build images. Feature 002 T-A01a checks Bigtop's own repo first — minutes of work, and it decides whether this is a week or a month |
 | `standard` profile exceeds laptop RAM | Project misses its audience | **High** | SPIKE-002 early; upstream's 8 GB is pre-install and optimistic; `mini` collapses to one host |
 | `apache-ambari.com` slow, rate-limited, or gone | Cannot build at all | Medium | D-005 mirror; FR-012 offline rebuild; commit the mirror manifest with checksums (F13) |
 | Install duration makes iteration painful | Slow development, slow CI | High | Local mirror (D-005); image layer caching; `mini` for iteration |

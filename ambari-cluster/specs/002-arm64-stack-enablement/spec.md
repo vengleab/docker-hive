@@ -24,53 +24,64 @@ supports the architecture".
 This feature exists because the answer might be "no", and if it is, the work required is
 substantial enough to deserve its own spec rather than being buried as a task in feature 001.
 
-## 2. The central question — **answered, 2026-08-27**
+## 2. The central question — partly answered, and the first answer was misread
 
-> **SPIKE-A01 — Does Bigtop 3.3.0 publish aarch64 RPMs for the components this project needs,
-> for the base OS this project uses?**
->
-> ## **No.**
->
-> The official Apache Ambari download page states: *"All packages are built for x86_64
-> architecture."* Only Rocky 8 and Rocky 9 x86_64 builds are published. Transcribed in
-> `../001-ambari-cluster-bootstrap/upstream-reference.md` § 5.
+> **Does the ARM64 support this project needs actually exist upstream?**
 
-**This puts the feature on Path C — build the Bigtop 3.3.0 stack from source. Estimated
-3–6 weeks.**
+**The Ambari distribution site: no.** Its download page states *"All packages are built for
+x86_64 architecture."* (`../001-ambari-cluster-bootstrap/upstream-reference.md` § 5.)
 
-That is a large enough commitment that it must be an explicit decision by the project owner,
-not something absorbed into a sprint. See § 8. Constitution P5 makes ARM64 a release gate and
-also provides the time-boxed exception if the owner judges the cost too high; either answer is
-legitimate, but the question must be put.
+**Apache Bigtop: yes.** This distinction was initially missed, and the feature was briefly
+scoped as a 3–6 week from-scratch source build on that basis. **That estimate is withdrawn.**
+Bigtop supports AArch64 and maintains ARM build infrastructure; the x86_64-only limitation
+belongs to the Ambari distribution site's build capacity, not to the software.
 
-**One thing could shrink this materially.** `ambari-server` and `ambari-agent` are largely Java
-and Python. If their `x86_64` tag is packaging metadata rather than real native content, the
-management layer may be cheaply rebuildable and only the *stack* needs a genuine build. T-A01
-checks this first, because it is the difference between three weeks and six.
+Verified against Docker Hub, 2026-08-27:
+
+```
+bigtop/puppet:3.3.0-rockylinux-8-aarch64   ✔   the ARM host image — already exists
+bigtop/slaves:3.3.0-rockylinux-8-aarch64   ✔   the ARM build environment — already exists
+```
+
+Those two are exactly the pieces that would have made a source build expensive, and both are
+supplied upstream for the precise OS and Bigtop version this project targets.
+
+**What is still unknown is narrow:** whether Bigtop *publishes* aarch64 RPMs at its own
+repository (`repos.bigtop.apache.org`, whose repo definitions are `$basearch`-parameterised).
+That is **SPIKE-A04**, and it swings the cost between roughly a week and roughly a month. It
+could not be checked from the drafting environment — the host is proxy-blocked, and the
+uniform 403 across every architecture is the proxy talking, not the server.
+
+**Run SPIKE-A04 before committing to anything.** The scope decision (§ 8, T-A00) is still the
+project owner's, but it should be taken against a measured answer rather than a withdrawn
+estimate.
 
 ## 3. Decision tree
 
-*(Retained as the record of how the path was chosen. **Path C is confirmed.**)*
+*(Retained as the record. Path selection now hinges on SPIKE-A04, not on the Ambari site.)*
 
 ```
                     T003: enumerate Bigtop 3.3.0 repos for aarch64
                                       │
         ┌─────────────────────────────┼─────────────────────────────┐
         ▼                             ▼                             ▼
-   PATH A: complete            PATH B: partial              PATH C: none  ◄── CONFIRMED
-   All needed components       Some components have         No aarch64 RPMs
-   have aarch64 RPMs           aarch64, others do not       published at all
+   PATH A: complete            PATH B: partial              PATH C: none
+   Bigtop publishes all        Bigtop publishes some        Bigtop publishes none
+   needed aarch64 RPMs         aarch64 RPMs                 at its own repo
         │                             │                             │
         ▼                             ▼                             ▼
-   Mirror them.                Mirror what exists.           Build the whole
-   Multi-arch images.          Build only the gap.           stack from source.
-   ~2-3 days.                  ~1-2 weeks.                   ~3-6 weeks.
-   RULED OUT                   RULED OUT (stack)             ◄── THIS ONE
+   Point the mirror at         Mirror what exists,          Build the stack using
+   Bigtop for the stack.       build the gap with           bigtop/slaves:3.3.0-
+   Multi-arch images.          Bigtop's ARM slave.          rockylinux-8-aarch64.
+   ~1 week.                    ~1-3 weeks.                  ~3-6 weeks.
 ```
 
-Also newly in scope on Path C: the **host base image** itself. Upstream's
-`bigtop/puppet:trunk-rockylinux-8` may have no aarch64 variant, in which case it must be built
-before any package work can begin. T-A01 checks this first.
+**The host base image is no longer in scope on any path** —
+`bigtop/puppet:3.3.0-rockylinux-8-aarch64` already exists.
+
+**And on every path, `ambari-server` / `ambari-agent` still need handling**, since those come
+from the Ambari site rather than Bigtop. They are largely Java and Python, so check whether
+their `x86_64` tag reflects real native content before assuming a rebuild is needed.
 
 The estimates are order-of-magnitude, stated so the cost is visible **before** anyone commits.
 Path C is a serious undertaking and its scope must be confirmed with the project owner rather
@@ -149,8 +160,10 @@ than absorbed silently.
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| ~~Path C confirmed~~ — **this has happened** | 3–6 weeks of work; feature 001's P5 release gate blocked until it lands | Scope must be confirmed with the project owner before starting (§ 8). Use P5's time-boxed exception to ship amd64 while the build pipeline is developed, rather than holding the whole project. |
-| Upstream base image has no aarch64 variant | The host image must be built too, before any package work | T-A01 checks this first |
+| Bigtop publishes no aarch64 RPMs → source build needed | 3–6 weeks; feature 001's P5 release gate blocked until it lands | **SPIKE-A04 first.** Scope confirmed with the project owner before starting (§ 8). Use P5's time-boxed exception to ship amd64 meanwhile rather than holding the whole project. |
+| ~~Upstream base image has no aarch64 variant~~ | — | **Retired** — `bigtop/puppet:3.3.0-rockylinux-8-aarch64` exists |
+| ~~Bigtop's build toolchain is amd64-only~~ | — | **Retired** — `bigtop/slaves:3.3.0-rockylinux-8-aarch64` exists |
+| `ambari-server` / `ambari-agent` are genuinely x86_64 | The management layer needs rebuilding even on Path A | Inspect the RPMs for real native content before assuming; they are largely Java and Python |
 | A component cannot be built for aarch64 at all | That service is amd64-only | FR-A13: document it; consider dropping it from the default topology on ARM |
 | Build produces subtly broken packages | Failures far from the cause | The smoke and parity suites are the gate — FR-A05, FR-A06 |
 | Bigtop's build toolchain itself does not run on ARM | Cross-compilation or an amd64 build host needed | Investigate early; an amd64 build host producing aarch64 packages is an acceptable answer |
