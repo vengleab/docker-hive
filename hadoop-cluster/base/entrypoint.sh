@@ -113,4 +113,4 @@ do
     wait_for_it ${i}
 done
 
-exec $@
+exec "$@"

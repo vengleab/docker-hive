@@ -116,5 +116,4 @@ do
     wait_for_it ${i}
 done
 
-# shellcheck disable=SC2068
-exec $@
+exec "$@"

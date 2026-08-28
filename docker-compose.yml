@@ -134,7 +134,10 @@ services:
       context: ./apache-hive/.
     env_file:
       - ./hadoop-hive.env
-    command: /opt/hive/bin/hive --service metastore
+    # initOrUpgradeSchema is idempotent: it creates the schema on first run and upgrades it
+    # on version bumps, so the postgres metastore db never has to seed hardcoded SQL files.
+    # The action flag must precede -dbType or HiveSchemaTool's arg parser rejects both (Hive 4.0.1 quirk).
+    command: bash -c "/opt/hive/bin/schematool -initOrUpgradeSchema -dbType postgres && exec /opt/hive/bin/hive --service metastore"
     environment:
       SERVICE_PRECONDITION: "namenode:9870 datanode:9864 hive-metastore-postgresql:5432"
     depends_on:

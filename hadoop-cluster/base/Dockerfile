@@ -1,22 +1,15 @@
 # Download and prepare stage
 FROM alpine:3.18 as builder
-ENV HADOOP_VERSION=3.3.6
+ENV HADOOP_VERSION=3.4.1
 WORKDIR /tmp
 
-# Use ARG to determine architecture-specific URL during build
-ARG TARGETARCH
+# Hadoop 3.4.x no longer ships a separate aarch64 tarball; the generic build works on both arches
 ENV HADOOP_URL=https://dlcdn.apache.org/hadoop/common/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION.tar.gz
-ENV HADOOP_URL_ARM=https://dlcdn.apache.org/hadoop/common/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION-aarch64.tar.gz
 
 # Download, verify, extract and clean up in single layer
 RUN apk add --no-cache wget gnupg && \
-    if [ "$TARGETARCH" = "arm64" ]; then \
-        wget "$HADOOP_URL_ARM" -O hadoop.tar.gz && \
-        wget "$HADOOP_URL_ARM.asc" -O hadoop.tar.gz.asc; \
-    else \
-        wget "$HADOOP_URL" -O hadoop.tar.gz && \
-        wget "$HADOOP_URL.asc" -O hadoop.tar.gz.asc; \
-    fi && \
+    wget "$HADOOP_URL" -O hadoop.tar.gz && \
+    wget "$HADOOP_URL.asc" -O hadoop.tar.gz.asc && \
     wget -O KEYS https://dist.apache.org/repos/dist/release/hadoop/common/KEYS && \
     gpg --import KEYS && \
     gpg --verify hadoop.tar.gz.asc && \
@@ -34,15 +27,17 @@ RUN apk add --no-cache wget gnupg && \
 
 #================================================================================================================================
     
-# Runtime stage - use Alpine with JRE only
-FROM openjdk:8-jre
+# Runtime stage - Java 17 JRE (openjdk:8-jre is deprecated/removed from Docker Hub)
+FROM eclipse-temurin:17-jre-jammy
 
-ENV HADOOP_VERSION=3.3.6
+ENV HADOOP_VERSION=3.4.1
 ENV HADOOP_HOME=/opt/hadoop
 ENV HADOOP_CONF_DIR=/etc/hadoop
 ENV MULTIHOMED_NETWORK=1
 ENV USER=root
 ENV PATH=$HADOOP_HOME/bin/:$PATH
+# Hadoop/Hive reflectively access JDK internals that are strongly encapsulated since JDK 16+ (JEP 396)
+ENV JDK_JAVA_OPTIONS="--add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.security.action=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED"
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends \
       net-tools \
