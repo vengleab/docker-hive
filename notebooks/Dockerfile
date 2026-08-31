@@ -35,7 +35,7 @@ RUN apt-get update \
     && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 2 \
     && update-alternatives --set python3 /usr/bin/python3.9 \
     && python3.9 /usr/lib/python3/dist-packages/easy_install.py pip 2>/dev/null || true \
-    && curl -sS https://bootstrap.pypa.io/get-pip.py | python3.9 \
+    && curl -sS https://bootstrap.pypa.io/pip/3.9/get-pip.py | python3.9 \
     && pip3 install --no-cache-dir jupyterlab \
     && useradd -m -s /bin/bash jovyan \
     && mkdir -p /home/jovyan/work /home/jovyan/hadoop-conf /usr/local/bin/before-notebook.d \
