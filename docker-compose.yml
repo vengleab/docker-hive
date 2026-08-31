@@ -1,5 +1,5 @@
 version: "3.5"
-# name: docker-hive-mini
+# name: big-data-hadoop-hive-learning-cluster
 
 services:
   portainer:
@@ -24,7 +24,7 @@ services:
       - "8889:8888"
 
   spark-notebook:
-    image: vengleab/docker-hive-mini:spark-notebook
+    image: vengleab/big-data-hadoop-hive-learning-cluster:spark-notebook
     build:
       context: ./notebooks
     user: root
@@ -63,7 +63,7 @@ services:
 
   namenode:
     build: ./hadoop-cluster/namenode
-    image: vengleab/docker-hive-mini:hadoop-namenode
+    image: vengleab/big-data-hadoop-hive-learning-cluster:hadoop-namenode
     volumes:
       - namenode:/hadoop/dfs/name
     environment:
@@ -75,7 +75,7 @@ services:
       - "9000:9000"
   datanode:
     build: ./hadoop-cluster/datanode
-    image: vengleab/docker-hive-mini:hadoop-datanode
+    image: vengleab/big-data-hadoop-hive-learning-cluster:hadoop-datanode
     volumes:
       - datanode:/hadoop/dfs/data
     env_file:
@@ -87,7 +87,7 @@ services:
 
   historyserver:
     build: ./hadoop-cluster/historyserver
-    image: vengleab/docker-hive-mini:hadoop-historyserver
+    image: vengleab/big-data-hadoop-hive-learning-cluster:hadoop-historyserver
     depends_on:
       - namenode
       - datanode
@@ -98,7 +98,7 @@ services:
 
   nodemanager:
     build: ./hadoop-cluster/nodemanager
-    image: vengleab/docker-hive-mini:hadoop-nodemanager
+    image: vengleab/big-data-hadoop-hive-learning-cluster:hadoop-nodemanager
     depends_on:
       - namenode
       - datanode
@@ -108,7 +108,7 @@ services:
       - "8042:8042"
   resourcemanager:
     build: ./hadoop-cluster/resourcemanager
-    image: vengleab/docker-hive-mini:hadoop-resourcemanager
+    image: vengleab/big-data-hadoop-hive-learning-cluster:hadoop-resourcemanager
     depends_on:
       - namenode
       - datanode
@@ -118,7 +118,7 @@ services:
     ports:
       - "8088:8088"
   hive-server:
-    image: vengleab/docker-hive-mini:hive
+    image: vengleab/big-data-hadoop-hive-learning-cluster:hive
     build:
       context: ./apache-hive/.
     env_file:
@@ -129,7 +129,7 @@ services:
     ports:
       - "10000:10000"
   hive-metastore:
-    image: vengleab/docker-hive-mini:hive
+    image: vengleab/big-data-hadoop-hive-learning-cluster:hive
     build:
       context: ./apache-hive/.
     env_file:
@@ -149,7 +149,7 @@ services:
   hive-metastore-postgresql:
     build:
       context: ./docker-hive-metastore-postgresql
-    image: vengleab/docker-hive-mini:hive-metastore-postgresql
+    image: vengleab/big-data-hadoop-hive-learning-cluster:hive-metastore-postgresql
     ports:
       - "5432:5432"
     environment:

@@ -9,7 +9,7 @@ RUN apk add --no-cache wget && wget -O apache-hive.tar.gz "$HIVE_URL" \
 
 #================================================================================================================================
 
-FROM vengleab/docker-hive-mini:base
+FROM vengleab/big-data-hadoop-hive-learning-cluster:base
 # Set HIVE_VERSION from arg if provided at build, env if provided at run, or default
 # https://docs.docker.com/engine/reference/builder/#using-arg-variables
 # https://docs.docker.com/engine/reference/builder/#environment-replacement
