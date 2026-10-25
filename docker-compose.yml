@@ -1,5 +1,5 @@
 version: "3.5"
-# name: docker-hive-mini
+# name: big-data-hadoop-hive-learning-cluster
 
 services:
   portainer:
@@ -23,21 +23,45 @@ services:
     ports:
       - "8889:8888"
 
-  spark-notebook:
-    image: vengleab/docker-hive-mini:spark-notebook
+  # spark-notebook:
+  #   image: vengleab/big-data-hadoop-hive-learning-cluster:spark-notebook
+  #   build:
+  #     context: ./notebooks
+  #   user: root
+  #   env_file:
+  #     - ./hadoop-hive.env
+  #   environment:
+  #     - JUPYTER_ENABLE_LAB="yes"
+  #     - GRANT_SUDO="yes"
+  #     - SPARK_CONF_DIR=/home/jovyan/work
+  #     - HADOOP_CONF_DIR=/home/jovyan/hadoop-conf
+  #     - PYSPARK_PYTHON=python3.9
+  #     - PYTHONPATH=/opt/spark/python:/opt/spark/python/lib/pyspark.zip:/opt/spark/python/lib/py4j-0.10.9.7-src.zip
+  #     - PYSPARK_DRIVER_PYTHON=python3.9
+  #   volumes:
+  #     - ./notebooks/work:/home/jovyan/work
+  #     - ./notebooks/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf
+  #     - ./notebooks/hadoop-config.sh:/usr/local/bin/before-notebook.d/hadoop-config.sh
+  #   ports:
+  #     - "8888:8888"
+  #     - "4040:4040"
+
+
+  spark-notebook2:
+    image: vengleab/big-data-hadoop-hive-learning-cluster:spark-notebook-v2
     build:
       context: ./notebooks
+      dockerfile: Dockerfile.v2
     user: root
     env_file:
       - ./hadoop-hive.env
     environment:
       - JUPYTER_ENABLE_LAB="yes"
       - GRANT_SUDO="yes"
-      - SPARK_CONF_DIR=/home/jovyan/work
       - HADOOP_CONF_DIR=/home/jovyan/hadoop-conf
-      - PYSPARK_PYTHON=python3.9
-      - PYTHONPATH=/opt/spark/python:/opt/spark/python/lib/pyspark.zip:/opt/spark/python/lib/py4j-0.10.9.7-src.zip
-      - PYSPARK_DRIVER_PYTHON=python3.9
+      - PYSPARK_PYTHON=python3.10
+      - PYTHONPATH=/opt/spark/python:/opt/spark/python/lib/pyspark.zip:/opt/spark/python/lib/py4j-0.10.9.9-src.zip
+      - PYSPARK_DRIVER_PYTHON=python3.10
     volumes:
       - ./notebooks/work:/home/jovyan/work
       - ./notebooks/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf
@@ -45,6 +69,7 @@ services:
     ports:
       - "8888:8888"
       - "4040:4040"
+
 
   # minio:
   #   hostname: minio
@@ -63,7 +88,7 @@ services:
 
   namenode:
     build: ./hadoop-cluster/namenode
-    image: vengleab/docker-hive-mini:hadoop-namenode
+    image: vengleab/big-data-hadoop-hive-learning-cluster:hadoop-namenode
     volumes:
       - namenode:/hadoop/dfs/name
     environment:
@@ -75,7 +100,7 @@ services:
       - "9000:9000"
   datanode:
     build: ./hadoop-cluster/datanode
-    image: vengleab/docker-hive-mini:hadoop-datanode
+    image: vengleab/big-data-hadoop-hive-learning-cluster:hadoop-datanode
     volumes:
       - datanode:/hadoop/dfs/data
     env_file:
@@ -87,7 +112,7 @@ services:
 
   historyserver:
     build: ./hadoop-cluster/historyserver
-    image: vengleab/docker-hive-mini:hadoop-historyserver
+    image: vengleab/big-data-hadoop-hive-learning-cluster:hadoop-historyserver
     depends_on:
       - namenode
       - datanode
@@ -98,7 +123,7 @@ services:
 
   nodemanager:
     build: ./hadoop-cluster/nodemanager
-    image: vengleab/docker-hive-mini:hadoop-nodemanager
+    image: vengleab/big-data-hadoop-hive-learning-cluster:hadoop-nodemanager
     depends_on:
       - namenode
       - datanode
@@ -108,17 +133,21 @@ services:
       - "8042:8042"
   resourcemanager:
     build: ./hadoop-cluster/resourcemanager
-    image: vengleab/docker-hive-mini:hadoop-resourcemanager
+    image: vengleab/big-data-hadoop-hive-learning-cluster:hadoop-resourcemanager
     depends_on:
       - namenode
       - datanode
       - nodemanager
     env_file:
       - ./hadoop-hive.env
+    # RM persists its state to HDFS (/rmstate) on boot and exits if no datanode is registered yet
+    environment:
+      SERVICE_PRECONDITION: "namenode:9000 namenode:9870 datanode:9864"
+    restart: on-failure
     ports:
       - "8088:8088"
   hive-server:
-    image: vengleab/docker-hive-mini:hive
+    image: vengleab/big-data-hadoop-hive-learning-cluster:hive
     build:
       context: ./apache-hive/.
     env_file:
@@ -129,12 +158,15 @@ services:
     ports:
       - "10000:10000"
   hive-metastore:
-    image: vengleab/docker-hive-mini:hive
+    image: vengleab/big-data-hadoop-hive-learning-cluster:hive
     build:
       context: ./apache-hive/.
     env_file:
       - ./hadoop-hive.env
-    command: /opt/hive/bin/hive --service metastore
+    # initOrUpgradeSchema is idempotent: it creates the schema on first run and upgrades it
+    # on version bumps, so the postgres metastore db never has to seed hardcoded SQL files.
+    # The action flag must precede -dbType or HiveSchemaTool's arg parser rejects both (Hive 4.0.1 quirk).
+    command: bash -c "/opt/hive/bin/schematool -initOrUpgradeSchema -dbType postgres && exec /opt/hive/bin/hive --service metastore"
     environment:
       SERVICE_PRECONDITION: "namenode:9870 datanode:9864 hive-metastore-postgresql:5432"
     depends_on:
@@ -146,7 +178,7 @@ services:
   hive-metastore-postgresql:
     build:
       context: ./docker-hive-metastore-postgresql
-    image: vengleab/docker-hive-mini:hive-metastore-postgresql
+    image: vengleab/big-data-hadoop-hive-learning-cluster:hive-metastore-postgresql
     ports:
       - "5432:5432"
     environment:

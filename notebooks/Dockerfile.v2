@@ -1,0 +1,69 @@
+
+ARG SPARK_VERSION=4.1.2
+
+# Download extra JARs
+# Versions follow Spark 4.1.2's own build: hadoop-aws must equal the bundled hadoop-client (3.4.2)
+# with its matching AWS SDK v2 bundle; kafka-clients/commons-pool2 match spark-sql-kafka's deps.
+FROM alpine AS download
+WORKDIR /tmp
+RUN wget -q https://repo1.maven.org/maven2/io/delta/delta-spark_2.13/4.3.1/delta-spark_2.13-4.3.1.jar \
+    && wget -q https://repo1.maven.org/maven2/io/delta/delta-storage/4.3.1/delta-storage-4.3.1.jar \
+    && wget -q https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/3.9.1/kafka-clients-3.9.1.jar \
+    && wget -q https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kafka-0-10_2.13/4.1.2/spark-sql-kafka-0-10_2.13-4.1.2.jar \
+    && wget -q https://repo1.maven.org/maven2/org/apache/spark/spark-streaming-kafka-0-10-assembly_2.13/4.1.2/spark-streaming-kafka-0-10-assembly_2.13-4.1.2.jar \
+    && wget -q https://repo1.maven.org/maven2/org/apache/commons/commons-pool2/2.12.1/commons-pool2-2.12.1.jar \
+    && wget -q https://repo1.maven.org/maven2/org/apache/spark/spark-token-provider-kafka-0-10_2.13/4.1.2/spark-token-provider-kafka-0-10_2.13-4.1.2.jar \
+    && wget -q https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.7/postgresql-42.7.7.jar \
+    && wget -q https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.4.2/hadoop-aws-3.4.2.jar \
+    && wget -q https://repo1.maven.org/maven2/software/amazon/awssdk/bundle/2.29.52/bundle-2.29.52.jar
+
+# Hive 4.0.1 metastore client: Spark's built-in client (Hive 2.3.10) calls Thrift APIs the cluster's
+# Hive 4 metastore removed (e.g. get_table). Spark's own resolver picks the artifact set it expects for
+# 4.0.1; the metastore connection then fails (none here), but the jars are already in Ivy's retrieve dir.
+FROM --platform=$BUILDPLATFORM apache/spark:${SPARK_VERSION}-scala2.13-java17-python3-ubuntu AS hive-metastore-client
+USER root
+RUN <<'EOF'
+export PYTHONPATH=/opt/spark/python:$(ls /opt/spark/python/lib/py4j-*-src.zip)
+python3 - <<'PY' || true
+from pyspark.sql import SparkSession
+spark = (SparkSession.builder.master("local[1]")
+         .config("spark.sql.hive.metastore.version", "4.0.1")
+         .config("spark.sql.hive.metastore.jars", "maven")
+         .config("spark.hadoop.hive.metastore.uris", "thrift://localhost:9083")
+         .enableHiveSupport().getOrCreate())
+spark.sql("SHOW DATABASES")
+PY
+mkdir -p /opt/hive-metastore-client && cp /root/.ivy2*/jars/*.jar /opt/hive-metastore-client/
+n=$(ls /opt/hive-metastore-client/*.jar | wc -l)
+echo "resolved $n Hive 4.0.1 metastore client jars"
+test "$n" -gt 20 && test -f /opt/hive-metastore-client/org.apache.hive_hive-metastore-4.0.1.jar
+EOF
+
+FROM apache/spark:${SPARK_VERSION}-scala2.13-java17-python3-ubuntu
+ARG SPARK_VERSION
+USER root
+
+ENV SPARK_HOME=/usr/local/spark \
+    PYSPARK_PYTHON=python3.10 \
+    PYSPARK_DRIVER_PYTHON=python3.10 \
+    PYTHONPATH=/opt/spark/python:/opt/spark/python/lib/pyspark.zip:/opt/spark/python/lib/py4j-0.10.9.9-src.zip \
+    PATH="${PATH}:/usr/local/spark/bin:/usr/local/spark/sbin"
+
+# Install jupyterlab into the image's default python3, create jovyan user/dirs,
+# and set up before-notebook.d hook directory.
+RUN pip3 install --no-cache-dir jupyterlab \
+    && useradd -m -s /bin/bash jovyan \
+    && mkdir -p /home/jovyan/work /home/jovyan/hadoop-conf /usr/local/bin/before-notebook.d \
+    && ln -s /opt/spark /usr/local/spark \
+    && rm -rf /root/.cache/pip
+
+COPY --from=download /tmp/*.jar /opt/spark/jars/
+# Kept off Spark's classpath: loaded in an isolated classloader via spark.sql.hive.metastore.jars.path
+COPY --from=hive-metastore-client /opt/hive-metastore-client/ /opt/hive-metastore-client/
+
+WORKDIR /home/jovyan/work
+EXPOSE 8888
+
+CMD ["/bin/bash", "-c", \
+    "for f in /usr/local/bin/before-notebook.d/*.sh; do [ -f \"$f\" ] && bash \"$f\"; done; \
+     exec jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --notebook-dir=/home/jovyan/work"]

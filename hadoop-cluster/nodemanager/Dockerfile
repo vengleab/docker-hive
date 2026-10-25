@@ -1,4 +1,4 @@
-FROM vengleab/docker-hive-mini:base
+FROM vengleab/big-data-hadoop-hive-learning-cluster:base
 
 HEALTHCHECK CMD curl -f http://localhost:8042/ || exit 1
 
