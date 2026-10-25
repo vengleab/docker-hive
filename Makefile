@@ -67,3 +67,10 @@ buildx-spark-notebook:
 		-t vengleab/big-data-hadoop-hive-learning-cluster:spark-notebook \
 		--push \
 		./notebooks
+
+buildx-spark-notebook-v2:
+	docker buildx build --platform linux/amd64,linux/arm64 \
+		-f ./notebooks/Dockerfile.v2 \
+		-t vengleab/big-data-hadoop-hive-learning-cluster:spark-notebook-v2 \
+		--push \
+		./notebooks

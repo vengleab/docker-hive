@@ -47,8 +47,8 @@ configure "$HADOOP_CONF_DIR/mapred-site.xml"  mapred  MAPRED_CONF
 chmod -R a+r "$HADOOP_CONF_DIR"
 echo "Hadoop config written to $HADOOP_CONF_DIR"
 
-# Ensure python3.9 is available on the driver to match the executor (nodemanager) Python version
-if ! command -v python3.9 &>/dev/null; then
-    echo "Installing python3.9 for PySpark driver/executor version alignment..."
-    apt-get install -y -q python3.9 python3.9-distutils 2>/dev/null || true
+# Ensure python3.10 is available on the driver to match the executor (nodemanager) Python version
+if ! command -v python3.10 &>/dev/null; then
+    echo "Installing python3.10 for PySpark driver/executor version alignment..."
+    apt-get update -q && apt-get install -y -q python3.10 2>/dev/null || true
 fi

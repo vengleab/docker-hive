@@ -23,21 +23,45 @@ services:
     ports:
       - "8889:8888"
 
-  spark-notebook:
-    image: vengleab/big-data-hadoop-hive-learning-cluster:spark-notebook
+  # spark-notebook:
+  #   image: vengleab/big-data-hadoop-hive-learning-cluster:spark-notebook
+  #   build:
+  #     context: ./notebooks
+  #   user: root
+  #   env_file:
+  #     - ./hadoop-hive.env
+  #   environment:
+  #     - JUPYTER_ENABLE_LAB="yes"
+  #     - GRANT_SUDO="yes"
+  #     - SPARK_CONF_DIR=/home/jovyan/work
+  #     - HADOOP_CONF_DIR=/home/jovyan/hadoop-conf
+  #     - PYSPARK_PYTHON=python3.9
+  #     - PYTHONPATH=/opt/spark/python:/opt/spark/python/lib/pyspark.zip:/opt/spark/python/lib/py4j-0.10.9.7-src.zip
+  #     - PYSPARK_DRIVER_PYTHON=python3.9
+  #   volumes:
+  #     - ./notebooks/work:/home/jovyan/work
+  #     - ./notebooks/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf
+  #     - ./notebooks/hadoop-config.sh:/usr/local/bin/before-notebook.d/hadoop-config.sh
+  #   ports:
+  #     - "8888:8888"
+  #     - "4040:4040"
+
+
+  spark-notebook2:
+    image: vengleab/big-data-hadoop-hive-learning-cluster:spark-notebook-v2
     build:
       context: ./notebooks
+      dockerfile: Dockerfile.v2
     user: root
     env_file:
       - ./hadoop-hive.env
     environment:
       - JUPYTER_ENABLE_LAB="yes"
       - GRANT_SUDO="yes"
-      - SPARK_CONF_DIR=/home/jovyan/work
       - HADOOP_CONF_DIR=/home/jovyan/hadoop-conf
-      - PYSPARK_PYTHON=python3.9
-      - PYTHONPATH=/opt/spark/python:/opt/spark/python/lib/pyspark.zip:/opt/spark/python/lib/py4j-0.10.9.7-src.zip
-      - PYSPARK_DRIVER_PYTHON=python3.9
+      - PYSPARK_PYTHON=python3.10
+      - PYTHONPATH=/opt/spark/python:/opt/spark/python/lib/pyspark.zip:/opt/spark/python/lib/py4j-0.10.9.9-src.zip
+      - PYSPARK_DRIVER_PYTHON=python3.10
     volumes:
       - ./notebooks/work:/home/jovyan/work
       - ./notebooks/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf
@@ -45,6 +69,7 @@ services:
     ports:
       - "8888:8888"
       - "4040:4040"
+
 
   # minio:
   #   hostname: minio
@@ -115,6 +140,10 @@ services:
       - nodemanager
     env_file:
       - ./hadoop-hive.env
+    # RM persists its state to HDFS (/rmstate) on boot and exits if no datanode is registered yet
+    environment:
+      SERVICE_PRECONDITION: "namenode:9000 namenode:9870 datanode:9864"
+    restart: on-failure
     ports:
       - "8088:8088"
   hive-server:
